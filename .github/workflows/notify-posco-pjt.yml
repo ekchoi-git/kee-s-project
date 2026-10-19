@@ -1,0 +1,12 @@
+name: notify posco-pjt
+on: push
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify posco-pjt dashboard
+        run: |
+          curl -s -X POST https://posco.jeong-yujin.com/api/dispatch \
+            -H "Content-Type: application/json" \
+            -d "{\"repo\":\"${{ github.repository }}\"}"
