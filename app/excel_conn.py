@@ -32,16 +32,23 @@ def _open_workbooks():
     return list(found.values())
 
 
-def list_targets():
-    """[{'wb': 통합 문서 개체, 'ws': 시트 개체, 'label': '파일 › 시트'}] 보이는 시트만."""
-    items = []
+def list_files():
+    """열린 파일 목록. 각 항목: {'wb': 통합 문서, 'name': 파일명, 'sheets': 보이는 시트들, 'active': 지금 보고 있는 시트 이름 또는 None}.
+    Excel에서 지금 보고 있는 파일이 맨 앞에 온다."""
+    files = []
     for wb in _open_workbooks():
-        for ws in wb.Worksheets:
-            if ws.Visible == -1:
-                items.append({"wb": wb, "ws": ws, "label": f"{wb.Name} › {ws.Name}"})
-    if not items:
+        sheets = [ws for ws in wb.Worksheets if ws.Visible == -1]
+        try:
+            active_wb = wb.Application.ActiveWorkbook
+            active = wb.Application.ActiveSheet.Name if active_wb and active_wb.Name == wb.Name else None
+        except Exception:
+            active = None
+        if sheets:
+            files.append({"wb": wb, "name": wb.Name, "sheets": sheets, "active": active})
+    if not files:
         raise ExcelError("열려 있는 Excel 파일을 찾지 못했습니다. Excel에서 파일을 연 뒤 새로고침을 눌러주세요.")
-    return items
+    files.sort(key=lambda f: f["active"] is None)
+    return files
 
 
 def read_summary(ws):
