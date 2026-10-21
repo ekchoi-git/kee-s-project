@@ -57,6 +57,43 @@ def active_sheet(wb):
     return ws
 
 
+def col_letter(n):
+    s = ""
+    while n:
+        n, r = divmod(n - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def sheet_info(ws, sample=5):
+    """AI에 보낼 시트 설명: 열 제목·위치, 행 수, 앞쪽 몇 행, 결과를 둘 빈 열, 동적 배열 지원 여부.
+    전체 데이터는 보내지 않는다 (PRD 8장)."""
+    s = read_summary(ws)
+    r0, c0, cols = s["first_row"], s["first_col"], s["cols"]
+    last = r0 + s["rows"]
+    cols_desc = [f"{col_letter(c0 + i)}열 '{h}' ({col_letter(c0 + i)}{r0 + 1}:{col_letter(c0 + i)}{last})"
+                 for i, h in enumerate(s["headers"])]
+    rows = []
+    if s["rows"]:
+        v = ws.Range(ws.Cells(r0 + 1, c0), ws.Cells(min(r0 + sample, last), c0 + cols - 1)).Value
+        rows = [" | ".join("" if x is None else str(x) for x in (r if isinstance(r, tuple) else (r,)))
+                for r in (v if isinstance(v, tuple) else ((v,),))]
+    try:
+        ws.Range("A1").Formula2
+        dyn = "지원함"
+    except Exception:
+        dyn = "지원 안 함"
+    return "\n".join([
+        f"시트: {ws.Name} (파일 {ws.Parent.Name})",
+        f"데이터 범위: {s['address']}, 머리글 {r0}행, 데이터 {s['rows']}행",
+        "열: " + "; ".join(cols_desc),
+        f"결과 시작 열: {col_letter(c0 + cols + 1)} (데이터 오른쪽 한 칸 띄움)",
+        f"Excel 버전 {s['app_version']}, 동적 배열 함수 {dyn}",
+        f"앞쪽 {len(rows)}행 예시:",
+        *rows,
+    ])
+
+
 def read_summary(ws):
     """시트의 사용 범위, 행 수, 열 제목. 읽기 전용·보호 시트 여부도 함께 알려준다."""
     used = ws.UsedRange
@@ -66,6 +103,9 @@ def read_summary(ws):
     row = v[0] if isinstance(v, tuple) else (v,)  # 셀이 하나면 값이 튜플이 아님
     headers = [str(c if c is not None else "") for c in row]
     return {
+        "first_row": first,
+        "first_col": used.Column,
+        "cols": cols,
         "address": used.Address.replace("$", ""),
         "rows": rows - 1,
         "headers": headers,

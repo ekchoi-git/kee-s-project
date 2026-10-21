@@ -1,9 +1,17 @@
 """대화창. 상단: Excel 연결·작업 대상, 가운데: 대화, 하단: 입력."""
-from PySide6.QtCore import Qt, QTimer
+import threading
+
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
-from .excel_conn import ExcelError, active_sheet, list_files, read_summary
+from . import ai
+from .excel_conn import ExcelError, active_sheet, list_files, read_summary, sheet_info
+
+
+class Bridge(QObject):
+    """작업 스레드의 결과를 화면 스레드로 넘긴다."""
+    done = Signal(object, object)  # (결과, 오류 문구)
 
 STYLE = """
 QWidget { font-family: 'Malgun Gothic'; font-size: 13px; background: white; }
@@ -61,17 +69,26 @@ class Window(QWidget):
 
         self.entry = QLineEdit()
         self.entry.setPlaceholderText("하고 싶은 일을 말로 적어주세요")
-        send = QPushButton("보내기")
-        send.setObjectName("send")
+        self.entry.returnPressed.connect(self.send)
+        self.send_btn = QPushButton("보내기")
+        self.send_btn.setObjectName("send")
+        self.send_btn.clicked.connect(self.send)
+        self.busy = QLabel("")
+        self.busy.setObjectName("status")
         bottom = QHBoxLayout()
         bottom.addWidget(self.entry, 1)
-        bottom.addWidget(send)
+        bottom.addWidget(self.send_btn)
+
+        self.planner = None
+        self.bridge = Bridge()
+        self.bridge.done.connect(self.on_plan)
 
         root = QVBoxLayout(self)
         root.addLayout(top)
         root.addLayout(pick)
         root.addWidget(self.target)
         root.addWidget(self.scroll, 1)
+        root.addWidget(self.busy)
         root.addLayout(bottom)
 
         # Excel에서 시트를 바꾸면 따라간다 (1초마다 확인, 바뀐 경우에만 다시 읽음)
@@ -141,6 +158,8 @@ class Window(QWidget):
             if force:
                 self.show_target("Excel에서 시트를 읽지 못했습니다. 셀 편집 중이면 끝낸 뒤 새로고침을 눌러주세요.", bad=True)
             return
+        if self.planner and key != self.sheet_key:
+            self.planner.reset()  # 대상이 바뀌면 이전 대화 맥락을 그대로 쓰지 않음 (PRD FR-02)
         self.sheet, self.sheet_key = ws, key
         warn = ""
         if s["protected"]:
@@ -148,6 +167,55 @@ class Window(QWidget):
         if s["readonly"]:
             warn += "\n⚠ 읽기 전용 파일이라 수정할 수 없습니다."
         self.show_target(f"작업 시트: {ws.Name}{warn}")
+
+    def send(self):
+        text = self.entry.text().strip()
+        if not text or not self.send_btn.isEnabled():
+            return
+        if self.sheet is None:
+            self.say("작업할 시트가 없습니다. Excel에서 파일을 열고 새로고침을 눌러주세요.", "err")
+            return
+        # 요청 시점의 대상 정보를 여기서 읽어 고정한다 (Excel 개체는 화면 스레드에서만 다룸)
+        try:
+            info = sheet_info(self.sheet)
+        except Exception as e:
+            self.say(f"시트를 읽지 못했습니다. 셀 편집 중이면 끝낸 뒤 다시 보내주세요. ({e})", "err")
+            return
+        if self.planner is None:
+            try:
+                self.planner = ai.Planner()
+            except Exception as e:
+                self.say(str(e), "err")
+                return
+        self.entry.clear()
+        self.say(text, "me")
+        self.send_btn.setEnabled(False)
+        self.busy.setText("AI가 요청을 해석하는 중…")
+        target = f"{self.sheet_key[0]} › {self.sheet_key[1]}"
+
+        def work():
+            try:
+                plan, tokens = self.planner.plan(info, text)
+                self.bridge.done.emit((plan, tokens, target), None)
+            except Exception as e:
+                self.bridge.done.emit(None, ai.explain(e) or f"예상하지 못한 오류: {e}")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def on_plan(self, res, err):
+        self.send_btn.setEnabled(True)
+        self.busy.setText("")
+        if err:
+            self.say(err, "err")
+            return
+        plan, tokens, target = res
+        if plan["action"] == "ask":
+            self.say(plan["question"] or plan["summary"])
+        elif plan["action"] == "unsupported":
+            self.say("지원하지 않는 요청입니다. " + plan["summary"], "err")
+        else:
+            steps = "\n".join("• " + s for s in ai.describe(plan))
+            self.say(f"{plan['summary']}\n\n대상: {target}\n{steps}\n\n(아직 Excel에는 적용하지 않았습니다 · 토큰 {tokens:,})")
 
 
 def main():
