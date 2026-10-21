@@ -147,9 +147,7 @@ class Window(QWidget):
             warn += "\n⚠ 보호된 시트라 수정할 수 없습니다."
         if s["readonly"]:
             warn += "\n⚠ 읽기 전용 파일이라 수정할 수 없습니다."
-        heads = ", ".join(h or "(빈칸)" for h in s["headers"])
-        self.show_target(f"작업 시트: {ws.Name}  ·  범위 {s['address']}  ·  데이터 {s['rows']:,}행\n"
-                         f"열 제목: {heads}{warn}")
+        self.show_target(f"작업 시트: {ws.Name}{warn}")
 
 
 def main():
