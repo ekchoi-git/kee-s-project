@@ -2,12 +2,63 @@
 import threading
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
-from PySide6.QtWidgets import (QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit,
+from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from . import ai
 from .excel_conn import ExcelError, active_sheet, list_files, read_summary
 from .excel_ops import PlanError, Target, Undo, execute, fingerprint, validate
+
+
+class KeyDialog(QDialog):
+    """AI API 키 입력. 화면에서는 가리고, 실제 접속으로 확인한 뒤 Windows 자격 증명 관리자에 저장 (PRD FR-08)."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setWindowTitle("AI API 키")
+        self.setMinimumWidth(420)
+        now = ai.current_key()
+        info = QLabel(f"현재 키: {ai.masked(now) if now else '없음'}\n"
+                      "입력한 키는 이 PC의 Windows 자격 증명 관리자에 암호화되어 저장됩니다.")
+        info.setWordWrap(True)
+        self.edit = QLineEdit()
+        self.edit.setEchoMode(QLineEdit.Password)
+        self.edit.setPlaceholderText("sk-로 시작하는 OpenAI API 키")
+        self.msg = QLabel("")
+        self.msg.setWordWrap(True)
+        save, remove, cancel = QPushButton("확인 후 저장"), QPushButton("저장된 키 삭제"), QPushButton("닫기")
+        save.setObjectName("send")
+        save.clicked.connect(self.save)
+        remove.clicked.connect(self.remove)
+        cancel.clicked.connect(self.reject)
+        btns = QHBoxLayout()
+        btns.addWidget(remove)
+        btns.addStretch(1)
+        btns.addWidget(cancel)
+        btns.addWidget(save)
+        lay = QVBoxLayout(self)
+        for wdg in (info, self.edit, self.msg):
+            lay.addWidget(wdg)
+        lay.addLayout(btns)
+
+    def save(self):
+        k = self.edit.text().strip()
+        if not k:
+            self.msg.setText("키를 입력해주세요.")
+            return
+        self.msg.setText("OpenAI에 접속해 키를 확인하는 중…")
+        QApplication.processEvents()
+        try:
+            ai.check_key(k)
+        except Exception as e:
+            self.msg.setText(f"저장하지 않았습니다. {e}")
+            return
+        ai.save_key(k)
+        self.accept()
+
+    def remove(self):
+        ai.delete_key()
+        self.msg.setText("저장된 키를 삭제했습니다.")
 
 
 class Bridge(QObject):
@@ -42,9 +93,12 @@ class Window(QWidget):
         self.status.setObjectName("status")
         refresh = QPushButton("새로고침")
         refresh.clicked.connect(self.refresh)
+        self.key_btn = QPushButton("AI 키")
+        self.key_btn.clicked.connect(self.edit_key)
         top = QHBoxLayout()
         top.addWidget(self.status)
         top.addStretch(1)
+        top.addWidget(self.key_btn)
         top.addWidget(refresh)
 
         self.file_combo = QComboBox()
@@ -102,6 +156,7 @@ class Window(QWidget):
         self.timer.timeout.connect(self.update_sheet)
         self.timer.start(1000)
         self.refresh()
+        self.show_key()
 
     def say(self, text, kind="bot"):
         label = QLabel(text)
@@ -211,6 +266,16 @@ class Window(QWidget):
                 self.bridge.done.emit(None, msg + " (Excel은 바꾸지 않았습니다)")
 
         threading.Thread(target=work, daemon=True).start()
+
+    def show_key(self):
+        k = ai.current_key()
+        self.key_btn.setText(f"AI 키 {ai.masked(k)}" if k else "AI 키 입력 필요")
+
+    def edit_key(self):
+        if KeyDialog(self).exec():
+            self.planner = None  # 새 키로 다시 연결 (대화 맥락도 새로 시작)
+            self.say("AI 키를 확인하고 저장했습니다.")
+        self.show_key()
 
     def set_busy(self, msg):
         self.busy.setText(msg)
