@@ -3,11 +3,13 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
-from .excel_conn import ExcelError, list_files, read_summary
+from .excel_conn import ExcelError, active_sheet, list_files, read_summary
 
 STYLE = """
 QWidget { font-family: 'Malgun Gothic'; font-size: 13px; background: white; }
 #status { color: #6b7280; }
+#target { background: #f3f4f6; border-radius: 8px; padding: 8px 12px; }
+#target[bad="true"] { background: #fcebeb; color: #791f1f; }
 #me { background: #e6f1fb; color: #0c447c; border-radius: 12px; padding: 8px 12px; }
 #bot { background: #f3f4f6; border-radius: 12px; padding: 10px 12px; }
 #err { background: #fcebeb; color: #791f1f; border-radius: 12px; padding: 10px 12px; }
@@ -24,25 +26,29 @@ class Window(QWidget):
         self.setWindowTitle("Excel AI 도우미")
         self.resize(640, 720)
         self.files = []
+        self.sheet = None       # 지금 작업 대상 시트 개체
+        self.sheet_key = None   # (파일, 시트 이름): 바뀌었을 때만 다시 읽기 위함
 
         self.status = QLabel("Excel 연결 확인 중…")
         self.status.setObjectName("status")
-        self.file_combo, self.sheet_combo = QComboBox(), QComboBox()
-        for c in (self.file_combo, self.sheet_combo):
-            c.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-        self.file_combo.currentIndexChanged.connect(self.on_file)
-        self.sheet_combo.currentIndexChanged.connect(self.on_sheet)
         refresh = QPushButton("새로고침")
         refresh.clicked.connect(self.refresh)
         top = QHBoxLayout()
         top.addWidget(self.status)
         top.addStretch(1)
         top.addWidget(refresh)
+
+        self.file_combo = QComboBox()
+        self.file_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.file_combo.currentIndexChanged.connect(lambda: self.update_sheet(force=True))
         pick = QHBoxLayout()
         pick.addWidget(QLabel("파일"))
-        pick.addWidget(self.file_combo, 3)
-        pick.addWidget(QLabel("시트"))
-        pick.addWidget(self.sheet_combo, 2)
+        pick.addWidget(self.file_combo, 1)
+
+        # 작업 대상 안내는 대화에 쌓지 않고 이 한 칸을 계속 갱신한다
+        self.target = QLabel("")
+        self.target.setObjectName("target")
+        self.target.setWordWrap(True)
 
         self.chat = QVBoxLayout()
         self.chat.setAlignment(Qt.AlignTop)
@@ -64,8 +70,14 @@ class Window(QWidget):
         root = QVBoxLayout(self)
         root.addLayout(top)
         root.addLayout(pick)
+        root.addWidget(self.target)
         root.addWidget(self.scroll, 1)
         root.addLayout(bottom)
+
+        # Excel에서 시트를 바꾸면 따라간다 (1초마다 확인, 바뀐 경우에만 다시 읽음)
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_sheet)
+        self.timer.start(1000)
         self.refresh()
 
     def say(self, text, kind="bot"):
@@ -83,6 +95,12 @@ class Window(QWidget):
         self.chat.addLayout(row)
         QTimer.singleShot(0, lambda: self.scroll.verticalScrollBar().setValue(self.scroll.verticalScrollBar().maximum()))
 
+    def show_target(self, text, bad=False):
+        self.target.setText(text)
+        self.target.setProperty("bad", bad)
+        self.target.style().unpolish(self.target)
+        self.target.style().polish(self.target)
+
     def refresh(self):
         """열린 파일을 다시 찾는다. 이전에 고른 파일이 아직 열려 있으면 그대로 유지한다."""
         prev = self.file_combo.currentText()
@@ -91,51 +109,47 @@ class Window(QWidget):
         try:
             self.files = list_files()
         except ExcelError as e:
-            self.files = []
-            self.sheet_combo.clear()
+            self.files, self.sheet, self.sheet_key = [], None, None
             self.status.setText("연결 안 됨")
-            self.say(str(e), "err")
+            self.show_target(str(e), bad=True)
         else:
             self.file_combo.addItems([f["name"] for f in self.files])
             if prev in [f["name"] for f in self.files]:
                 self.file_combo.setCurrentText(prev)
             self.status.setText("● Excel 연결됨")
-            self.say(f"Excel에서 파일 {len(self.files)}개를 찾았습니다. 파일과 시트를 확인하세요.")
         self.file_combo.blockSignals(False)
-        if self.files:
-            self.on_file()
+        self.update_sheet(force=True)
 
-    def on_file(self):
-        """고른 파일의 시트를 자동으로 채우고, Excel에서 보고 있는 시트를 기본 선택한다."""
+    def update_sheet(self, force=False):
+        """선택한 파일에서 지금 열려 있는 시트를 작업 대상으로 잡는다."""
         i = self.file_combo.currentIndex()
         if i < 0:
             return
-        f = self.files[i]
-        self.sheet_combo.blockSignals(True)
-        self.sheet_combo.clear()
-        names = [ws.Name for ws in f["sheets"]]
-        self.sheet_combo.addItems(names)
-        if f["active"] in names:
-            self.sheet_combo.setCurrentText(f["active"])
-        self.sheet_combo.blockSignals(False)
-        self.on_sheet()
-
-    def on_sheet(self):
-        i, j = self.file_combo.currentIndex(), self.sheet_combo.currentIndex()
-        if i < 0 or j < 0:
-            return
+        wb = self.files[i]["wb"]
         try:
-            s = read_summary(self.files[i]["sheets"][j])
-        except Exception as e:
-            self.say(f"이 시트를 읽지 못했습니다: {e}", "err")
+            ws = active_sheet(wb)
+            key = (wb.Name, ws.Name)
+            if key == self.sheet_key and not force:
+                return
+            s = read_summary(ws)
+        except ExcelError as e:
+            self.sheet, self.sheet_key = None, None
+            self.show_target(str(e), bad=True)
             return
+        except Exception:
+            # Excel이 셀 편집 중이거나 파일이 닫힌 경우: 다음 확인 때 다시 시도
+            if force:
+                self.show_target("Excel에서 시트를 읽지 못했습니다. 셀 편집 중이면 끝낸 뒤 새로고침을 눌러주세요.", bad=True)
+            return
+        self.sheet, self.sheet_key = ws, key
         warn = ""
         if s["protected"]:
             warn += "\n⚠ 보호된 시트라 수정할 수 없습니다."
         if s["readonly"]:
             warn += "\n⚠ 읽기 전용 파일이라 수정할 수 없습니다."
-        self.say(f"작업 대상: {self.file_combo.currentText()} › {self.sheet_combo.currentText()}\n범위 {s['address']} · 데이터 {s['rows']:,}행\n"
-                 f"열 제목: {', '.join(h or '(빈칸)' for h in s['headers'])}{warn}")
+        heads = ", ".join(h or "(빈칸)" for h in s["headers"])
+        self.show_target(f"작업 시트: {ws.Name}  ·  범위 {s['address']}  ·  데이터 {s['rows']:,}행\n"
+                         f"열 제목: {heads}{warn}")
 
 
 def main():

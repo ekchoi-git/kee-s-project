@@ -33,22 +33,28 @@ def _open_workbooks():
 
 
 def list_files():
-    """열린 파일 목록. 각 항목: {'wb': 통합 문서, 'name': 파일명, 'sheets': 보이는 시트들, 'active': 지금 보고 있는 시트 이름 또는 None}.
-    Excel에서 지금 보고 있는 파일이 맨 앞에 온다."""
-    files = []
-    for wb in _open_workbooks():
-        sheets = [ws for ws in wb.Worksheets if ws.Visible == -1]
-        try:
-            active_wb = wb.Application.ActiveWorkbook
-            active = wb.Application.ActiveSheet.Name if active_wb and active_wb.Name == wb.Name else None
-        except Exception:
-            active = None
-        if sheets:
-            files.append({"wb": wb, "name": wb.Name, "sheets": sheets, "active": active})
-    if not files:
+    """열린 파일 목록 [{'wb': 통합 문서, 'name': 파일명}]. Excel에서 지금 보고 있는 파일이 맨 앞에 온다."""
+    wbs = _open_workbooks()
+    if not wbs:
         raise ExcelError("열려 있는 Excel 파일을 찾지 못했습니다. Excel에서 파일을 연 뒤 새로고침을 눌러주세요.")
-    files.sort(key=lambda f: f["active"] is None)
-    return files
+    try:
+        current = wbs[0].Application.ActiveWorkbook.Name
+    except Exception:
+        current = None
+    wbs.sort(key=lambda wb: wb.Name != current)
+    return [{"wb": wb, "name": wb.Name} for wb in wbs]
+
+
+def active_sheet(wb):
+    """그 파일에서 지금 열려 있는(보이는) 시트. 일반 시트가 아니면(차트 시트 등) ExcelError."""
+    ws = wb.ActiveSheet
+    try:
+        is_data = ws.Type == -4167  # xlWorksheet
+    except Exception:  # 차트 시트에는 이 속성이 없음
+        is_data = False
+    if not is_data:
+        raise ExcelError(f"'{ws.Name}'은 데이터 시트가 아닙니다. Excel에서 데이터가 있는 시트를 열어주세요.")
+    return ws
 
 
 def read_summary(ws):
