@@ -85,6 +85,11 @@ class Planner:
     def reset(self):
         self.history = []
 
+    def undone(self):
+        """되돌린 작업을 AI가 여전히 있다고 보고 후속 계획을 세우지 않도록 기록에 남긴다."""
+        self.history += [{"role": "user", "content": "(직전 작업을 되돌렸다. 그 결과는 이제 시트에 없다.)"},
+                         {"role": "assistant", "content": "알겠습니다."}]
+
     def plan(self, sheet_info, request):
         msgs = [{"role": "system", "content": SYSTEM}, *self.history[-8:],
                 {"role": "user", "content": f"[시트 정보]\n{sheet_info}\n\n[요청]\n{request}"}]

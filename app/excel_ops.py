@@ -1,0 +1,291 @@
+"""Excel 쪽: 대상 표 읽기, AI 계획 검사, 실행, 직전 작업 되돌리기."""
+import hashlib, re
+
+BACKUP = "_ai_undo"
+
+
+class PlanError(Exception):
+    """사용자에게 그대로 보여줄 실패 이유."""
+
+
+# --- 계획 검사 (PRD 8장: 허용된 작업만, 외부 통신·다른 파일·매크로 차단) ---
+ADDRESS = re.compile(r"^\$?[A-Z]{1,3}\$?[1-9]\d*(:\$?[A-Z]{1,3}\$?[1-9]\d*)?$")
+BLOCKED_FN = re.compile(r"\b(WEBSERVICE|RTD|CALL|REGISTER(\.ID)?|HYPERLINK|IMAGE|STOCKHISTORY|CUBE[A-Z]*|EXEC)\s*\(", re.I)
+EXTERNAL = re.compile(r"https?://|[A-Za-z]:\\|\\\\|\[[^\]]*\.(xl\w*|csv)\]|\w\|[^,)]*!", re.I)
+
+CRITERIA = {
+    "=": "={}", "<>": "<>{}", ">": ">{}", ">=": ">={}", "<": "<{}", "<=": "<={}",
+    "contains": "=*{}*", "begins": "={}*", "blank": "=", "notblank": "<>",
+}
+
+PIVOT_FUNC = {"sum": -4157, "count": -4112, "average": -4106, "max": -4136, "min": -4139}
+
+
+def validate(plan, headers):
+    """실행 전에 계획의 열 이름·주소·수식을 검사. 문제 목록을 돌려준다(비어 있으면 통과)."""
+    bad = []
+    cols = [f["column"] for f in plan["filters"]] + [s["column"] for s in plan["sorts"]]
+    if plan["pivot"]:
+        p = plan["pivot"]
+        cols += p["rows"] + p["columns"] + [v["field"] for v in p["values"]]
+        if not p["values"]:
+            bad.append("피벗에 집계할 값이 없습니다.")
+    bad += [f"'{c}' 열이 표에 없습니다." for c in dict.fromkeys(cols) if c not in headers]
+    for w in plan["writes"]:
+        if not ADDRESS.match(w["address"].upper()):
+            bad.append(f"'{w['address']}'는 이 시트의 셀 주소가 아닙니다.")
+        if BLOCKED_FN.search(w["content"]) or EXTERNAL.search(w["content"]):
+            bad.append(f"'{w['content'][:60]}'는 외부 연결·다른 파일·추가 기능이 필요한 수식이라 실행하지 않습니다.")
+    if plan["action"] == "change" and not (plan["filters"] or plan["sorts"] or plan["writes"] or plan["pivot"]):
+        bad.append("실행할 작업이 없습니다.")
+    return bad
+
+
+# --- 오류 값: COM은 #N/A 같은 오류를 음수 정수로 돌려줌 ---
+ERR_BASE = -2146828288
+ERR_NAMES = {2000: "#NULL!", 2007: "#DIV/0!", 2015: "#VALUE!", 2023: "#REF!", 2029: "#NAME?", 2036: "#NUM!",
+             2042: "#N/A", 2045: "#SPILL!", 2046: "#CONNECT!", 2047: "#BLOCKED!", 2048: "#UNKNOWN!",
+             2049: "#FIELD!", 2050: "#CALC!"}
+# 데이터 때문에 일부 행에서 생길 수 있는 오류는 경고만, 나머지는 수식 자체가 잘못된 것으로 보고 취소
+DATA_ERRORS = {"#DIV/0!", "#VALUE!", "#N/A", "#NUM!"}
+
+
+def errors_in(values):
+    if not isinstance(values, tuple):
+        values = ((values,),)
+    found = {}
+    for row in values:
+        for v in row:
+            if type(v) is int and ERR_BASE < v < ERR_BASE + 3000:
+                name = ERR_NAMES.get(v - ERR_BASE, "#오류")
+                found[name] = found.get(name, 0) + 1
+    return found
+
+
+def numeric_text(values):
+    """숫자처럼 보이지만 글자로 저장된 칸 수. 정렬·필터에서 숫자로 취급되지 않는다."""
+    n = 0
+    for (v,) in values:
+        if isinstance(v, str):
+            try:
+                float(v.replace(",", ""))
+                n += 1
+            except ValueError:
+                pass
+    return n
+
+
+def col_letter(n):
+    s = ""
+    while n:
+        n, r = divmod(n - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+class Target:
+    """요청 시점에 고정한 통합 문서·시트와 그 안의 데이터 표."""
+
+    def __init__(self, ws):
+        self.ws, self.wb, self.xl = ws, ws.Parent, ws.Application
+        self.lo = self.ws.ListObjects(1) if self.ws.ListObjects.Count else None
+        # shortcut: 시트의 첫 표(없으면 A1에서 이어진 범위)만 대상으로 봄, 여러 표 지원 시 선택 범위로 확장
+        self.region = self.lo.Range if self.lo else self.ws.Range("A1").CurrentRegion
+        row1 = self.region.Rows(1).Value2
+        self.headers = [str(h) if h is not None else "" for h in (row1[0] if isinstance(row1, tuple) else (row1,))]
+
+    def check(self):
+        if self.wb.ReadOnly:
+            raise PlanError("읽기 전용 문서라 작업하지 않습니다. 편집 가능한 상태로 열어주세요.")
+        if self.ws.ProtectContents:
+            raise PlanError("보호된 시트라 작업하지 않습니다. 보호는 직접 해제해주세요.")
+        if self.region.MergeCells is not False:
+            raise PlanError("병합된 셀이 있는 표는 지원하지 않습니다.")
+        if self.region.Rows.Count < 2 or not any(self.headers):
+            raise PlanError("A1부터 시작하는 머리글 있는 표를 찾지 못했습니다.")
+
+    def info(self):
+        r = self.region
+        first, last = r.Row, r.Row + r.Rows.Count - 1
+        cols = [f"{col_letter(r.Column + i)}={h}" for i, h in enumerate(self.headers)]
+        n = min(5, r.Rows.Count - 1)
+        sample = [" | ".join(str(r.Cells(2 + i, j + 1).Text) for j in range(len(self.headers))) for i in range(n)]
+        used = self.ws.UsedRange
+        free = col_letter(max(r.Column + r.Columns.Count, used.Column + used.Columns.Count) + 1)
+        return "\n".join([
+            f"통합 문서: {self.wb.Name} / 시트: {self.ws.Name}",
+            f"데이터 범위: {r.Address} (머리글 {first}행, 데이터 {first + 1}~{last}행, {last - first}행)",
+            "열: " + ", ".join(cols),
+            f"결과 시작 열: {free} (그 왼쪽은 사용 중)",
+            f"Excel 버전 {self.xl.Version}, 동적 배열 함수 {'지원함' if dynamic_arrays(self.ws) else '지원 안 함'}",
+            "샘플 5행:", *sample,
+        ])
+
+
+def dynamic_arrays(ws):
+    """버전 문자열 대신 실제 속성으로 확인 (PRD FR-01)."""
+    try:
+        ws.Range("A1").Formula2
+        return True
+    except Exception:
+        return False
+
+
+def fingerprint(ws):
+    r = ws.UsedRange
+    filt = ws.AutoFilterMode, [lo.AutoFilter.FilterMode if lo.AutoFilter else None for lo in ws.ListObjects]
+    raw = repr((r.Address, r.Formula2, r.Value2, filt, ws.PivotTables().Count, [s.Name for s in ws.Parent.Worksheets]))
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def execute(t, plan):
+    """검사를 통과한 계획을 실행하고 바뀐 내용을 설명 목록으로 돌려준다. 실패하면 PlanError."""
+    stage = ["준비"]
+    try:
+        return _execute(t, plan, stage)
+    except PlanError:
+        raise
+    except Exception as e:
+        # COM 오류 문구는 사용자가 읽을 수 없으므로 어느 단계였는지 알린다
+        raise PlanError(f"{stage[0]} 단계에서 Excel이 작업을 거부했습니다. ({getattr(e, 'excepinfo', None) and e.excepinfo[2] or e})")
+
+
+def _execute(t, plan, stage):
+    ws, xl, done = t.ws, t.xl, []
+    idx = {h: i + 1 for i, h in enumerate(t.headers)}
+
+    # 필터를 먼저 걸면 Excel이 보이는 행만 정렬하므로 정렬이 먼저
+    stage[0] = "정렬"
+    if plan["sorts"]:
+        sorter = t.lo.Sort if t.lo else ws.Sort
+        sorter.SortFields.Clear()
+        for s in plan["sorts"]:
+            key = t.lo.ListColumns(s["column"]).Range if t.lo else t.region.Columns(idx[s["column"]])
+            sorter.SortFields.Add(Key=key, Order=2 if s["descending"] else 1)
+        if not t.lo:
+            sorter.SetRange(t.region)
+        sorter.Header = 1  # 머리글 행은 정렬하지 않음, 행 단위로 함께 움직임
+        sorter.Apply()
+        done.append("정렬: " + ", ".join(f"{s['column']} {'내림차순' if s['descending'] else '오름차순'}" for s in plan["sorts"]))
+
+    # 원본 값은 바꾸지 않고, 숫자로 취급되지 않은 칸이 있으면 알림 (PRD 5장: 사용한 가정 표시)
+    for c in dict.fromkeys([s["column"] for s in plan["sorts"]] + [f["column"] for f in plan["filters"] if f["op"] in "<>=<=>="]):
+        n = numeric_text(t.region.Columns(idx[c]).Value2[1:])
+        if n:
+            done.append(f"⚠ '{c}' 열에 숫자처럼 보이지만 글자로 저장된 칸이 {n}개 있어 정렬·비교에서 숫자로 취급되지 않았습니다. 숫자로 바꾸려면 말씀해주세요.")
+
+    stage[0] = "필터"
+    for f in plan["filters"]:
+        crit = CRITERIA[f["op"]].format(f["value"])
+        t.region.AutoFilter(Field=idx[f["column"]], Criteria1=crit)
+        done.append(f"필터: {f['column']} {f['op']} {f['value']}".rstrip())
+    if plan["filters"]:
+        shown = int(xl.WorksheetFunction.Subtotal(103, t.region.Columns(1))) - 1
+        done.append(f"→ 조건에 맞아 보이는 행 {shown}개")
+
+    stage[0] = "셀 입력"
+    if plan["writes"]:
+        ranges = [ws.Range(w["address"]) for w in plan["writes"]]
+        if not plan["overwrite"]:
+            for w, r in zip(plan["writes"], ranges):
+                if xl.WorksheetFunction.CountA(r) or xl.Intersect(r, t.region) is not None:
+                    raise PlanError(f"{w['address']}에 이미 데이터가 있어 덮어쓰지 않았습니다. 덮어쓰려면 그렇게 말씀해주세요.")
+        dyn = dynamic_arrays(ws)
+        for w, r in zip(plan["writes"], ranges):
+            if w["content"].startswith("=") and dyn:
+                r.Formula2 = w["content"]
+            elif w["content"].startswith("="):
+                r.Formula = w["content"]  # 동적 배열이 없는 Excel
+            else:
+                r.Value2 = w["content"]
+        xl.Calculate()
+        errs = {}
+        for w, r in zip(plan["writes"], ranges):
+            out = r.SpillingToRange if r.Count == 1 and r.HasSpill else r
+            for k, v in errors_in(out.Value2).items():
+                errs[k] = errs.get(k, 0) + v
+        fatal = {k: v for k, v in errs.items() if k not in DATA_ERRORS}
+        if fatal:
+            raise PlanError("수식이 오류를 냈습니다(" + ", ".join(f"{k} {v}칸" for k, v in fatal.items())
+                            + "). 지원하지 않는 함수이거나 결과가 들어갈 자리가 막혀 있을 수 있습니다.")
+        for w in plan["writes"][:12]:
+            done.append(f"입력: {w['address']}  {w['content']}")
+        if len(plan["writes"]) > 12:
+            done.append(f"… 외 {len(plan['writes']) - 12}곳")
+        if errs:
+            done.append("⚠ 일부 칸 오류(데이터 때문일 수 있음): " + ", ".join(f"{k} {v}칸" for k, v in errs.items()))
+
+    stage[0] = "피벗"
+    if plan["pivot"]:
+        p = plan["pivot"]
+        names = {s.Name for s in t.wb.Worksheets}
+        name = next(f"AI 피벗{i}" for i in range(1, 1000) if f"AI 피벗{i}" not in names)
+        new = t.wb.Worksheets.Add(After=ws)
+        new.Name = name
+        pt = t.wb.PivotCaches().Create(1, t.region).CreatePivotTable(new.Range("A3"), name.replace(" ", ""))
+        for c in p["rows"]:
+            pt.PivotFields(c).Orientation = 1
+        for c in p["columns"]:
+            pt.PivotFields(c).Orientation = 2
+        for v in p["values"]:
+            pt.AddDataField(pt.PivotFields(v["field"]), f"{v['field']} {v['func']}", PIVOT_FUNC[v["func"]])
+        ws.Activate()
+        done.append(f"피벗: 새 시트 '{name}' (행 {', '.join(p['rows']) or '-'} / 열 {', '.join(p['columns']) or '-'})")
+    return done
+
+
+class Undo:
+    """직전 AI 작업 1단계 되돌리기 (spike/undo_check.py에서 1만 행으로 검증한 방식)."""
+
+    def __init__(self, t):
+        self.ws, self.wb, self.xl = t.ws, t.wb, t.xl
+
+    def before(self):
+        self.drop()
+        self.sheets = [s.Name for s in self.wb.Worksheets]
+        self.tables = [lo.Name for lo in self.ws.ListObjects]
+        try:
+            # shortcut: 숨김 사본이 사용자 문서 안에 있어 그 사이 저장하면 같이 저장됨, 다음 작업·되돌리기 때 지워짐
+            self.ws.Copy(After=self.wb.Worksheets(self.wb.Worksheets.Count))
+            b = self.wb.Worksheets(self.wb.Worksheets.Count)
+            b.Name, b.Visible = BACKUP, 2  # 2 = 사용자에게 안 보이는 숨김
+            self.ws.Activate()
+        except Exception as e:
+            raise PlanError(f"되돌리기용 사본을 만들지 못해 실행하지 않았습니다: {e}")
+
+    def after(self):
+        self.done = fingerprint(self.ws)
+
+    def undo(self, force=False):
+        if not force and fingerprint(self.ws) != self.done:
+            raise PlanError("AI 작업 뒤에 직접 수정한 내용이 있어 되돌리지 않았습니다. 직접 수정한 내용을 덮어쓰지 않기 위해서입니다.")
+        self.xl.DisplayAlerts = False
+        try:
+            for s in list(self.wb.Worksheets):
+                if s.Name not in self.sheets and s.Name != BACKUP:
+                    s.Delete()
+        finally:
+            self.xl.DisplayAlerts = True
+        for pt in list(self.ws.PivotTables()):
+            pt.TableRange2.Clear()
+        for lo in list(self.ws.ListObjects):
+            if lo.AutoFilter and lo.AutoFilter.FilterMode:
+                lo.AutoFilter.ShowAllData()
+            lo.Unlist()  # 표를 남긴 채 붙이면 충돌하므로 일반 범위로 바꾼 뒤 비움
+        self.ws.AutoFilterMode = False
+        # shortcut: 작업 전 필터가 걸려 있었다면 그 조건은 복원 안 됨, 필터 위 작업 지원 시 보강
+        self.ws.Cells.Clear()  # Delete는 다른 시트 수식의 참조를 #REF!로 깨뜨려서 Clear를 씀
+        self.wb.Worksheets(BACKUP).Cells.Copy(self.ws.Cells)
+        for lo, name in zip(self.ws.ListObjects, self.tables):
+            lo.Name = name  # 붙여넣으면 표 이름이 바뀌어 다른 수식의 표 참조가 깨지므로 원래 이름으로
+        self.drop()
+
+    def drop(self):
+        self.xl.DisplayAlerts = False
+        try:
+            for s in list(self.wb.Worksheets):
+                if s.Name == BACKUP:
+                    s.Visible = -1
+                    s.Delete()
+        finally:
+            self.xl.DisplayAlerts = True

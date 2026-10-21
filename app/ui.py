@@ -6,7 +6,8 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QFrame, QHBoxLayout, QLa
                                QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from . import ai
-from .excel_conn import ExcelError, active_sheet, list_files, read_summary, sheet_info
+from .excel_conn import ExcelError, active_sheet, list_files, read_summary
+from .excel_ops import PlanError, Target, Undo, execute, fingerprint, validate
 
 
 class Bridge(QObject):
@@ -75,11 +76,16 @@ class Window(QWidget):
         self.send_btn.clicked.connect(self.send)
         self.busy = QLabel("")
         self.busy.setObjectName("status")
+        self.undo_btn = QPushButton("직전 AI 작업 되돌리기")
+        self.undo_btn.clicked.connect(self.undo)
+        self.undo_btn.setEnabled(False)
         bottom = QHBoxLayout()
         bottom.addWidget(self.entry, 1)
         bottom.addWidget(self.send_btn)
+        bottom.addWidget(self.undo_btn)
 
         self.planner = None
+        self.last = None  # 직전 AI 작업의 Undo (1단계만, PRD FR-07)
         self.bridge = Bridge()
         self.bridge.done.connect(self.on_plan)
 
@@ -175,9 +181,14 @@ class Window(QWidget):
         if self.sheet is None:
             self.say("작업할 시트가 없습니다. Excel에서 파일을 열고 새로고침을 눌러주세요.", "err")
             return
-        # 요청 시점의 대상 정보를 여기서 읽어 고정한다 (Excel 개체는 화면 스레드에서만 다룸)
+        # 요청 시점의 대상을 여기서 고정한다 (Excel 개체는 화면 스레드에서만 다룸)
         try:
-            info = sheet_info(self.sheet)
+            t = Target(self.sheet)
+            t.check()
+            info, before = t.info(), fingerprint(t.ws)
+        except PlanError as e:
+            self.say(str(e), "err")
+            return
         except Exception as e:
             self.say(f"시트를 읽지 못했습니다. 셀 편집 중이면 끝낸 뒤 다시 보내주세요. ({e})", "err")
             return
@@ -189,33 +200,92 @@ class Window(QWidget):
                 return
         self.entry.clear()
         self.say(text, "me")
-        self.send_btn.setEnabled(False)
-        self.busy.setText("AI가 요청을 해석하는 중…")
-        target = f"{self.sheet_key[0]} › {self.sheet_key[1]}"
+        self.set_busy("AI가 요청을 해석하는 중…")
 
         def work():
             try:
                 plan, tokens = self.planner.plan(info, text)
-                self.bridge.done.emit((plan, tokens, target), None)
+                self.bridge.done.emit((plan, tokens, t, before), None)
             except Exception as e:
-                self.bridge.done.emit(None, ai.explain(e) or f"예상하지 못한 오류: {e}")
+                msg = ai.explain(e) or f"예상하지 못한 오류: {e}"
+                self.bridge.done.emit(None, msg + " (Excel은 바꾸지 않았습니다)")
 
         threading.Thread(target=work, daemon=True).start()
 
+    def set_busy(self, msg):
+        self.busy.setText(msg)
+        self.send_btn.setEnabled(not msg)
+        self.undo_btn.setEnabled(not msg and self.last is not None)
+
     def on_plan(self, res, err):
-        self.send_btn.setEnabled(True)
-        self.busy.setText("")
+        self.set_busy("")
         if err:
             self.say(err, "err")
             return
-        plan, tokens, target = res
+        plan, tokens, t, before = res
+        tail = f"\n(토큰 {tokens:,})"
         if plan["action"] == "ask":
-            self.say(plan["question"] or plan["summary"])
-        elif plan["action"] == "unsupported":
-            self.say("지원하지 않는 요청입니다. " + plan["summary"], "err")
-        else:
-            steps = "\n".join("• " + s for s in ai.describe(plan))
-            self.say(f"{plan['summary']}\n\n대상: {target}\n{steps}\n\n(아직 Excel에는 적용하지 않았습니다 · 토큰 {tokens:,})")
+            self.say((plan["question"] or plan["summary"]) + tail)
+            return
+        if plan["action"] == "unsupported":
+            self.say("지원하지 않는 요청입니다. " + plan["summary"] + tail, "err")
+            return
+        try:
+            self.say(self.apply(plan, t, before) + tail)
+        except PlanError as e:
+            self.say(str(e), "err")
+        except Exception as e:  # 예상 못 한 Excel 오류에도 창이 '적용 중'에 멈추지 않게
+            self.say(f"Excel 작업 중 오류가 났습니다: {e}", "err")
+        finally:
+            self.set_busy("")
+
+    def apply(self, plan, t, before):
+        """검사 → 되돌리기 사본 → 즉시 실행. 실패하면 원래대로 되돌리고 PlanError."""
+        bad = validate(plan, t.headers)
+        if bad:
+            raise PlanError("AI 계획에 문제가 있어 실행하지 않았습니다:\n- " + "\n- ".join(bad))
+        if fingerprint(t.ws) != before:
+            raise PlanError("AI가 해석하는 동안 시트 내용이 바뀌어 실행하지 않았습니다. 다시 요청해주세요.")
+        self.set_busy("Excel에 적용하는 중…")
+        QApplication.processEvents()
+        u = Undo(t)
+        self.last = None  # 새 사본을 뜨면 이전 사본은 지워지므로 이전 작업은 더 이상 되돌릴 수 없음
+        u.before()
+        # shortcut: Excel 적용은 화면 스레드에서 실행해 그동안 창이 잠깐 멈춤, 1만 행 측정 후 필요하면 분리
+        t.xl.ScreenUpdating = False
+        try:
+            done = execute(t, plan)
+        except Exception as e:
+            try:
+                u.undo(force=True)
+                state = "원래 상태로 되돌렸습니다."
+            except Exception as e2:
+                state = f"자동 복구도 실패했습니다({e2}). 파일을 저장하지 말고 닫은 뒤 다시 여는 것을 권합니다."
+            reason = str(e) if isinstance(e, PlanError) else f"Excel 실행 오류: {e}"
+            raise PlanError(f"{reason}\n→ {state}")
+        finally:
+            t.xl.ScreenUpdating = True
+        u.after()
+        self.last = u
+        steps = "\n".join("• " + d for d in done)
+        return f"✔ 적용 완료\n{plan['summary']}\n\n대상: {t.wb.Name} › {t.ws.Name}\n{steps}"
+
+    def undo(self):
+        if not self.last:
+            return
+        try:
+            self.last.undo()
+        except PlanError as e:
+            self.say(str(e), "err")
+            return
+        except Exception as e:
+            self.say(f"되돌리기 중 Excel 오류: {e}", "err")
+            return
+        self.last = None
+        if self.planner:
+            self.planner.undone()
+        self.set_busy("")
+        self.say("↩ 직전 AI 작업을 되돌렸습니다.")
 
 
 def main():
