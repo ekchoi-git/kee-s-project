@@ -5,9 +5,10 @@ from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
-from . import ai
+from . import ai, classify
 from .excel_conn import ExcelError, active_sheet, list_files, read_summary
-from .excel_ops import PlanError, Target, Undo, execute, fingerprint, validate
+from .excel_ops import (PlanError, Target, Undo, column_values, execute, fingerprint, validate,
+                        write_classification)
 
 
 class KeyDialog(QDialog):
@@ -64,6 +65,8 @@ class KeyDialog(QDialog):
 class Bridge(QObject):
     """작업 스레드의 결과를 화면 스레드로 넘긴다."""
     done = Signal(object, object)  # (결과, 오류 문구)
+    progress = Signal(int, int)    # 분류 진행 (처리, 전체)
+    classified = Signal(object, object)
 
 STYLE = """
 QWidget { font-family: 'Malgun Gothic'; font-size: 13px; background: white; }
@@ -147,6 +150,8 @@ class Window(QWidget):
         self.last = None  # 직전 AI 작업의 Undo (1단계만, PRD FR-07)
         self.bridge = Bridge()
         self.bridge.done.connect(self.on_plan)
+        self.bridge.progress.connect(self.on_progress)
+        self.bridge.classified.connect(self.on_classified)
 
         root = QVBoxLayout(self)
         root.addLayout(top)
@@ -300,8 +305,51 @@ class Window(QWidget):
         if plan["action"] == "unsupported":
             self.say("지원하지 않는 요청입니다. " + plan["summary"] + tail, "err")
             return
+        bad = validate(plan, t.headers)
+        if bad:
+            self.say("AI 계획에 문제가 있어 실행하지 않았습니다:\n- " + "\n- ".join(bad), "err")
+            return
+        if plan["classify"]:
+            self.start_classify(plan, t, before, tokens)
+            return
+        self.finish(plan, t, before, None, tail)
+
+    def start_classify(self, plan, t, before, tokens):
+        """분류는 AI 호출이 많아 작업 스레드에서 하고, 끝나면 화면 스레드에서 Excel에 쓴다."""
+        c = plan["classify"]
         try:
-            self.say(self.apply(plan, t, before) + tail)
+            values = column_values(t, c["column"])
+        except Exception as e:
+            self.say(f"'{c['column']}' 열을 읽지 못했습니다: {e}", "err")
+            return
+        self.set_busy(f"'{c['column']}' 열을 분류하는 중… (설명 글이 OpenAI로 전송됩니다)")
+        client = self.planner.client
+
+        def work():
+            try:
+                res = classify.classify(client, values, c["categories"], c["criteria"], plan["summary"],
+                                        lambda d, n: self.bridge.progress.emit(d, n))
+                self.bridge.classified.emit((plan, t, before, tokens, res, values), None)
+            except Exception as e:
+                msg = ai.explain(e) or f"분류 중 오류: {e}"
+                self.bridge.classified.emit(None, msg + " (Excel은 바꾸지 않았습니다)")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def on_progress(self, done, total):
+        self.busy.setText(f"분류하는 중… 서로 다른 설명 {done:,}/{total:,}건 처리")
+
+    def on_classified(self, res, err):
+        self.set_busy("")
+        if err:
+            self.say(err, "err")
+            return
+        plan, t, before, tokens, cls, values = res
+        self.finish(plan, t, before, (cls, values), f"\n(토큰 {tokens + cls['tokens']:,})")
+
+    def finish(self, plan, t, before, cls, tail):
+        try:
+            self.say(self.apply(plan, t, before, cls) + tail)
         except PlanError as e:
             self.say(str(e), "err")
         except Exception as e:  # 예상 못 한 Excel 오류에도 창이 '적용 중'에 멈추지 않게
@@ -309,11 +357,8 @@ class Window(QWidget):
         finally:
             self.set_busy("")
 
-    def apply(self, plan, t, before):
-        """검사 → 되돌리기 사본 → 즉시 실행. 실패하면 원래대로 되돌리고 PlanError."""
-        bad = validate(plan, t.headers)
-        if bad:
-            raise PlanError("AI 계획에 문제가 있어 실행하지 않았습니다:\n- " + "\n- ".join(bad))
+    def apply(self, plan, t, before, cls=None):
+        """대상 재확인 → 되돌리기 사본 → 즉시 실행. 실패하면 원래대로 되돌리고 PlanError."""
         if fingerprint(t.ws) != before:
             raise PlanError("AI가 해석하는 동안 시트 내용이 바뀌어 실행하지 않았습니다. 다시 요청해주세요.")
         self.set_busy("Excel에 적용하는 중…")
@@ -324,7 +369,13 @@ class Window(QWidget):
         # shortcut: Excel 적용은 화면 스레드에서 실행해 그동안 창이 잠깐 멈춤, 1만 행 측정 후 필요하면 분리
         t.xl.ScreenUpdating = False
         try:
-            done = execute(t, plan)
+            done = []
+            if cls:
+                res, values = cls
+                loc = write_classification(t, plan["classify"]["column"], res["rows"], plan["overwrite"])
+                done += classify.report(res, values, loc)
+                t = Target(t.ws)  # 분류 열이 붙은 표로 다시 읽어야 이어지는 정렬·필터가 그 열을 포함
+            done += execute(t, plan)
         except Exception as e:
             try:
                 u.undo(force=True)
@@ -338,7 +389,8 @@ class Window(QWidget):
         u.after()
         self.last = u
         steps = "\n".join("• " + d for d in done)
-        return f"✔ 적용 완료\n{plan['summary']}\n\n대상: {t.wb.Name} › {t.ws.Name}\n{steps}"
+        head = "⚠ 일부만 분류됨" if cls and cls[0]["failed"] else "✔ 적용 완료"  # 일부 실패를 전체 성공으로 표시하지 않음
+        return f"{head}\n{plan['summary']}\n\n대상: {t.wb.Name} › {t.ws.Name}\n{steps}"
 
     def undo(self):
         if not self.last:

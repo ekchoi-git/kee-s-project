@@ -30,13 +30,15 @@ def validate(plan, headers):
         cols += p["rows"] + p["columns"] + [v["field"] for v in p["values"]]
         if not p["values"]:
             bad.append("피벗에 집계할 값이 없습니다.")
+    if plan["classify"]:
+        cols.append(plan["classify"]["column"])
     bad += [f"'{c}' 열이 표에 없습니다." for c in dict.fromkeys(cols) if c not in headers]
     for w in plan["writes"]:
         if not ADDRESS.match(w["address"].upper()):
             bad.append(f"'{w['address']}'는 이 시트의 셀 주소가 아닙니다.")
         if BLOCKED_FN.search(w["content"]) or EXTERNAL.search(w["content"]):
             bad.append(f"'{w['content'][:60]}'는 외부 연결·다른 파일·추가 기능이 필요한 수식이라 실행하지 않습니다.")
-    if plan["action"] == "change" and not (plan["filters"] or plan["sorts"] or plan["writes"] or plan["pivot"]):
+    if plan["action"] == "change" and not (plan["filters"] or plan["sorts"] or plan["writes"] or plan["pivot"] or plan["classify"]):
         bad.append("실행할 작업이 없습니다.")
     return bad
 
@@ -289,3 +291,43 @@ class Undo:
                     s.Delete()
         finally:
             self.xl.DisplayAlerts = True
+
+
+def column_values(t, column):
+    """표의 한 열 데이터(머리글 제외)를 행 순서대로."""
+    v = t.region.Columns(t.headers.index(column) + 1).Value2
+    return [r[0] for r in v[1:]]
+
+
+def write_classification(t, column, rows, overwrite):
+    """분류 결과를 표 바로 오른쪽 두 열(분류, 분류 이유)에 쓴다. 표에 붙여야 정렬할 때 행과 함께 움직인다.
+    같은 이름의 열이 이미 있으면(다시 분류) 그 열을 갱신한다. 돌려주는 값: 기록한 위치 설명."""
+    from .classify import CHECK, FAILED
+    names = [f"{column} 분류", f"{column} 분류 이유"]
+    ws, n = t.ws, len(rows)
+    if all(h in t.headers for h in names):
+        cols = [t.region.Column + t.headers.index(h) for h in names]
+    else:
+        start = t.region.Column + t.region.Columns.Count
+        cols = [start, start + 1]
+        block = ws.Range(ws.Cells(t.region.Row, start), ws.Cells(t.region.Row + n, start + 1))
+        if not overwrite and t.xl.WorksheetFunction.CountA(block):
+            raise PlanError(f"표 오른쪽 {col_letter(start)}~{col_letter(start + 1)}열에 이미 내용이 있어 분류 결과를 쓰지 않았습니다. "
+                            "그 열을 비우거나, 덮어써도 된다고 말씀해주세요.")
+        if t.lo:  # 표(ListObject)는 열을 추가해야 표 범위에 포함된다
+            for h in names:
+                t.lo.ListColumns.Add().Name = h
+        else:
+            for c, h in zip(cols, names):
+                ws.Cells(t.region.Row, c).Value2 = h
+    top = t.region.Row + 1
+    for c, k in zip(cols, (0, 1)):
+        ws.Range(ws.Cells(top, c), ws.Cells(top + n - 1, c)).Value2 = tuple((r[k],) for r in rows)
+    # 확인 필요·실패 행은 눈에 띄게 (원래 서식은 되돌리기 사본에 있음)
+    target = ws.Range(ws.Cells(top, cols[0]), ws.Cells(top + n - 1, cols[0]))
+    target.Interior.ColorIndex = -4142
+    for i, (cat, _) in enumerate(rows):
+        if cat in (CHECK, FAILED):
+            ws.Cells(top + i, cols[0]).Interior.Color = 0x99E6FF if cat == CHECK else 0xC0C0FF  # 연노랑 / 연빨강 (BGR)
+    ws.Columns(cols[1]).ColumnWidth = 36
+    return f"{col_letter(cols[0])}열 '{names[0]}', {col_letter(cols[1])}열 '{names[1]}'"
