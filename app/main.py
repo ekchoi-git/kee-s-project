@@ -122,6 +122,11 @@ class App:
             self.target["values"] = [f"{wb} › {ws}" for wb, ws in items]
             if items:
                 self.target.current(items.index(active) if active in items else 0)
+                self.say(f"Excel 연결됨: 파일 {len({wb for wb, _ in items})}개, 시트 {len(items)}개. "
+                         f"작업 대상: {self.target.get()}", "info")
+            else:
+                self.target.set("")
+                self.say("Excel은 연결됐지만 열린 파일이 없습니다. 파일을 연 뒤 새로고침을 눌러주세요.", "err")
         self.worker.submit(lambda s: s.targets(), got)
 
     def on_target(self):
