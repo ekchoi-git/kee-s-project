@@ -77,6 +77,9 @@ QLineEdit, QComboBox { border: 1px solid #d1d5db; border-radius: 8px; padding: 7
 QPushButton { border: 1px solid #d1d5db; border-radius: 8px; padding: 7px 14px; background: white; }
 QPushButton:hover { background: #f3f4f6; }
 #send { background: #111827; color: white; border: none; }
+#apikey { background: #2f3ce8; color: white; border: none; border-radius: 16px; padding: 7px 26px;
+          font-weight: bold; letter-spacing: 1px; }
+#apikey:hover { background: #2531c4; }
 """
 
 
@@ -93,7 +96,9 @@ class Window(QWidget):
         self.status.setObjectName("status")
         refresh = QPushButton("새로고침")
         refresh.clicked.connect(self.refresh)
-        self.key_btn = QPushButton("AI 키")
+        self.key_btn = QPushButton("API KEY")
+        self.key_btn.setObjectName("apikey")
+        self.key_btn.setCursor(Qt.PointingHandCursor)
         self.key_btn.clicked.connect(self.edit_key)
         top = QHBoxLayout()
         top.addWidget(self.status)
@@ -269,7 +274,7 @@ class Window(QWidget):
 
     def show_key(self):
         k = ai.current_key()
-        self.key_btn.setText(f"AI 키 {ai.masked(k)}" if k else "AI 키 입력 필요")
+        self.key_btn.setToolTip(f"현재 키: {ai.masked(k)}" if k else "API 키를 입력해주세요")
 
     def edit_key(self):
         if KeyDialog(self).exec():

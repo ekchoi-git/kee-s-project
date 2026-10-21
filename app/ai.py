@@ -102,7 +102,7 @@ def current_key():
 def api_key():
     k = current_key()
     if not k:
-        raise RuntimeError("AI API 키가 없습니다. 오른쪽 위 'AI 키' 버튼을 눌러 입력해주세요.")
+        raise RuntimeError("AI API 키가 없습니다. 오른쪽 위 'API KEY' 버튼을 눌러 입력해주세요.")
     return k
 
 
