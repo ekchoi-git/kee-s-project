@@ -1,7 +1,9 @@
 """대화창. 상단: Excel 연결·작업 대상, 가운데: 대화, 하단: 입력."""
 import threading
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QByteArray, QObject, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QIcon, QPainter, QPixmap
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
@@ -9,6 +11,26 @@ from . import ai, classify
 from .excel_conn import ExcelError, active_sheet, list_files, read_summary
 from .excel_ops import (PlanError, Target, Undo, column_values, execute, fingerprint, validate,
                         write_classification)
+
+
+ARROW_UP = '<path d="M12 5l0 14"/><path d="M18 11l-6 -6"/><path d="M6 11l6 -6"/>'
+ARROW_BACK_UP = '<path d="M9 14l-4 -4l4 -4"/><path d="M5 10h11a4 4 0 1 1 0 8h-1"/>'
+
+
+def line_icon(paths, color, disabled_color, size=20):
+    """선 아이콘을 원하는 색으로 그린다. 글꼴 문자(↑, ↶)보다 선이 고르고 또렷하다."""
+    icon = QIcon()
+    for mode, c in ((QIcon.Normal, color), (QIcon.Disabled, disabled_color)):
+        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{c}" '
+               f'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{paths}</svg>')
+        pm = QPixmap(size * 2, size * 2)  # 고해상도 화면에서도 또렷하게 2배로 그림
+        pm.fill(Qt.transparent)
+        painter = QPainter(pm)
+        QSvgRenderer(QByteArray(svg.encode())).render(painter)
+        painter.end()
+        pm.setDevicePixelRatio(2)
+        icon.addPixmap(pm, mode)
+    return icon
 
 
 class KeyDialog(QDialog):
@@ -80,15 +102,15 @@ QLineEdit, QComboBox { border: 1px solid #d1d5db; border-radius: 8px; padding: 7
 QPushButton { border: 1px solid #d1d5db; border-radius: 8px; padding: 7px 14px; background: white; }
 QPushButton:hover { background: #f3f4f6; }
 #send { background: #111827; color: white; border: none; }
-#inputbox { border: 1px solid #d1d5db; border-radius: 22px; background: white; }
-#inputbox QLineEdit { border: none; padding: 6px 4px 6px 12px; background: transparent; }
-#sendicon { background: #111827; color: white; border: none; border-radius: 16px; padding: 0;
-            font-family: 'Segoe UI Symbol'; font-size: 16px; font-weight: bold; }
-#sendicon:disabled { background: #9ca3af; }
-#undoicon { border: 1px solid #d1d5db; border-radius: 22px; padding: 0 0 6px 0; background: white;
-            font-family: 'Segoe UI Symbol'; font-size: 26px; color: #374151; }
-#undoicon:hover { background: #f3f4f6; }
-#undoicon:disabled { color: #d1d5db; border-color: #e5e7eb; }
+#bottombar { background: #f7f6f2; border-radius: 12px; }
+#inputbox { border: 1px solid #dcdad3; border-radius: 20px; background: white; }
+#inputbox QLineEdit { border: none; padding: 6px 4px 6px 14px; background: transparent; color: #1f1f1d; }
+#sendicon { background: #1f1f1d; border: none; border-radius: 16px; padding: 0; }
+#sendicon:hover { background: #3a3a37; }
+#sendicon:disabled { background: #b4b2a9; }
+#undoicon { border: 1px solid #dcdad3; border-radius: 20px; padding: 0; background: white; }
+#undoicon:hover { background: #f1efe8; }
+#undoicon:disabled { border-color: #e8e6df; }
 #apikey { background: #2f3ce8; color: white; border: none; border-radius: 16px; padding: 7px 26px;
           font-weight: bold; letter-spacing: 1px; }
 #apikey:hover { background: #2531c4; }
@@ -142,7 +164,9 @@ class Window(QWidget):
         self.entry = QLineEdit()
         self.entry.setPlaceholderText("하고 싶은 일을 말로 적어주세요")
         self.entry.returnPressed.connect(self.send)
-        self.send_btn = QPushButton("↑")
+        self.send_btn = QPushButton()
+        self.send_btn.setIcon(line_icon(ARROW_UP, "#ffffff", "#ffffff", 18))
+        self.send_btn.setIconSize(QSize(18, 18))
         self.send_btn.setObjectName("sendicon")
         self.send_btn.setFixedSize(32, 32)
         self.send_btn.setToolTip("보내기 (Enter)")
@@ -151,9 +175,11 @@ class Window(QWidget):
         self.send_btn.clicked.connect(self.send)
         self.busy = QLabel("")
         self.busy.setObjectName("status")
-        self.undo_btn = QPushButton("↶")
+        self.undo_btn = QPushButton()
+        self.undo_btn.setIcon(line_icon(ARROW_BACK_UP, "#5f5e5a", "#d3d1c7"))
+        self.undo_btn.setIconSize(QSize(20, 20))
         self.undo_btn.setObjectName("undoicon")
-        self.undo_btn.setFixedSize(44, 44)
+        self.undo_btn.setFixedSize(40, 40)
         self.undo_btn.setToolTip("직전 AI 작업 되돌리기")
         self.undo_btn.setAccessibleName("직전 AI 작업 되돌리기")
         self.undo_btn.setCursor(Qt.PointingHandCursor)
@@ -161,11 +187,16 @@ class Window(QWidget):
         self.undo_btn.setEnabled(False)
         box = QFrame()  # 보내기 버튼이 입력창 안 오른쪽에 들어간 둥근 입력창
         box.setObjectName("inputbox")
+        box.setFixedHeight(42)  # 둥근 정도(20)가 높이의 절반을 넘으면 Qt가 모서리를 각지게 그림
         inner = QHBoxLayout(box)
-        inner.setContentsMargins(4, 5, 6, 5)
+        inner.setContentsMargins(2, 4, 4, 4)
         inner.addWidget(self.entry, 1)
         inner.addWidget(self.send_btn)
-        bottom = QHBoxLayout()
+        self.bottombar = QFrame()
+        self.bottombar.setObjectName("bottombar")
+        bottom = QHBoxLayout(self.bottombar)
+        bottom.setContentsMargins(12, 12, 12, 12)
+        bottom.setSpacing(8)
         bottom.addWidget(box, 1)
         bottom.addWidget(self.undo_btn)
 
@@ -182,7 +213,7 @@ class Window(QWidget):
         root.addWidget(self.target)
         root.addWidget(self.scroll, 1)
         root.addWidget(self.busy)
-        root.addLayout(bottom)
+        root.addWidget(self.bottombar)
 
         # Excel에서 시트를 바꾸면 따라간다 (1초마다 확인, 바뀐 경우에만 다시 읽음)
         self.timer = QTimer(self)
