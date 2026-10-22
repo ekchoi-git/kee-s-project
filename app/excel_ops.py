@@ -121,7 +121,34 @@ class Target:
             f"결과 시작 열: {free} (그 왼쪽은 사용 중)",
             f"Excel 버전 {self.xl.Version}, 동적 배열 함수 {'지원함' if dynamic_arrays(self.ws) else '지원 안 함'}",
             "샘플 5행:", *sample,
+            *self.outside(),
         ])
+
+    def outside(self, limit=40):
+        """표 오른쪽에 이미 있는 내용(이전 작업 결과 등). 펼쳐진 수식은 실제 범위까지 알려줘야
+        '방금 만든 표 맨 아래' 같은 후속 요청의 위치를 AI가 짐작하지 않는다."""
+        r, used = self.region, self.ws.UsedRange
+        c0, c1 = r.Column + r.Columns.Count, used.Column + used.Columns.Count - 1
+        if c0 > c1:
+            return []
+        block = self.ws.Range(self.ws.Cells(used.Row, c0), self.ws.Cells(used.Row + used.Rows.Count - 1, c1))
+        dyn = dynamic_arrays(self.ws)
+        f = block.Formula2 if dyn else block.Formula
+        f = f if isinstance(f, tuple) else ((f,),)
+        lines = []
+        for i, row in enumerate(f):
+            for j, v in enumerate(row):
+                if v in ("", None):
+                    continue  # 펼쳐진 결과 칸은 수식이 비어 있어 여기서 빠지고 원래 수식 칸에서 범위로 알려줌
+                cell = block.Cells(i + 1, j + 1)
+                addr = cell.Address.replace("$", "")
+                if dyn and str(v).startswith("=") and cell.HasSpill:
+                    lines.append(f"{addr}: {v}  → 결과가 {cell.SpillingToRange.Address.replace('$', '')}에 펼쳐져 있음")
+                else:
+                    lines.append(f"{addr}: {v}")
+                if len(lines) >= limit:
+                    return ["표 오른쪽에 이미 있는 내용(일부):", *lines]
+        return ["표 오른쪽에 이미 있는 내용:", *lines] if lines else []
 
 
 def dynamic_arrays(ws):
