@@ -1,3 +1,4 @@
 pywin32
 PySide6
 openai
+python-dotenv

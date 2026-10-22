@@ -1,8 +1,14 @@
 """ChatGPT 연결: 한국어 요청을 정해진 형식(JSON)의 작업 계획으로 바꾼다. 실행은 하지 않는다."""
-import json, os, winreg
+import json, os, sys, winreg
 import openai
 import win32cred
 from openai import OpenAI
+
+# 개발 중(소스로 실행)에만 프로젝트 폴더의 .env를 읽는다. 배포한 exe는 화면에서 저장한 키를 쓴다.
+DEV = not getattr(sys, "frozen", False)
+if DEV:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"), override=True)
 
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.6-terra")
 
@@ -97,8 +103,9 @@ def masked(k):
 
 
 def current_key():
-    """화면에서 저장한 키 → 환경 변수 순. 없으면 None."""
-    k = saved_key() or os.environ.get("OPENAI_API_KEY")
+    """개발 중: .env(환경 변수) → 화면에서 저장한 키. 배포 exe: 화면에서 저장한 키 → 환경 변수. 없으면 None."""
+    env = os.environ.get("OPENAI_API_KEY")
+    k = (env or saved_key()) if DEV else (saved_key() or env)
     if not k:  # 프로그램을 켠 뒤에 넣은 키는 열린 창에 안 보이므로 사용자 환경 변수에서 직접 읽음
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as h:
