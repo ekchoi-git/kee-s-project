@@ -80,6 +80,15 @@ QLineEdit, QComboBox { border: 1px solid #d1d5db; border-radius: 8px; padding: 7
 QPushButton { border: 1px solid #d1d5db; border-radius: 8px; padding: 7px 14px; background: white; }
 QPushButton:hover { background: #f3f4f6; }
 #send { background: #111827; color: white; border: none; }
+#inputbox { border: 1px solid #d1d5db; border-radius: 22px; background: white; }
+#inputbox QLineEdit { border: none; padding: 6px 4px 6px 12px; background: transparent; }
+#sendicon { background: #111827; color: white; border: none; border-radius: 16px; padding: 0;
+            font-family: 'Segoe UI Symbol'; font-size: 16px; font-weight: bold; }
+#sendicon:disabled { background: #9ca3af; }
+#undoicon { border: 1px solid #d1d5db; border-radius: 22px; padding: 0 0 6px 0; background: white;
+            font-family: 'Segoe UI Symbol'; font-size: 26px; color: #374151; }
+#undoicon:hover { background: #f3f4f6; }
+#undoicon:disabled { color: #d1d5db; border-color: #e5e7eb; }
 #apikey { background: #2f3ce8; color: white; border: none; border-radius: 16px; padding: 7px 26px;
           font-weight: bold; letter-spacing: 1px; }
 #apikey:hover { background: #2531c4; }
@@ -133,17 +142,31 @@ class Window(QWidget):
         self.entry = QLineEdit()
         self.entry.setPlaceholderText("하고 싶은 일을 말로 적어주세요")
         self.entry.returnPressed.connect(self.send)
-        self.send_btn = QPushButton("보내기")
-        self.send_btn.setObjectName("send")
+        self.send_btn = QPushButton("↑")
+        self.send_btn.setObjectName("sendicon")
+        self.send_btn.setFixedSize(32, 32)
+        self.send_btn.setToolTip("보내기 (Enter)")
+        self.send_btn.setAccessibleName("보내기")
+        self.send_btn.setCursor(Qt.PointingHandCursor)
         self.send_btn.clicked.connect(self.send)
         self.busy = QLabel("")
         self.busy.setObjectName("status")
-        self.undo_btn = QPushButton("직전 AI 작업 되돌리기")
+        self.undo_btn = QPushButton("↶")
+        self.undo_btn.setObjectName("undoicon")
+        self.undo_btn.setFixedSize(44, 44)
+        self.undo_btn.setToolTip("직전 AI 작업 되돌리기")
+        self.undo_btn.setAccessibleName("직전 AI 작업 되돌리기")
+        self.undo_btn.setCursor(Qt.PointingHandCursor)
         self.undo_btn.clicked.connect(self.undo)
         self.undo_btn.setEnabled(False)
+        box = QFrame()  # 보내기 버튼이 입력창 안 오른쪽에 들어간 둥근 입력창
+        box.setObjectName("inputbox")
+        inner = QHBoxLayout(box)
+        inner.setContentsMargins(4, 5, 6, 5)
+        inner.addWidget(self.entry, 1)
+        inner.addWidget(self.send_btn)
         bottom = QHBoxLayout()
-        bottom.addWidget(self.entry, 1)
-        bottom.addWidget(self.send_btn)
+        bottom.addWidget(box, 1)
         bottom.addWidget(self.undo_btn)
 
         self.planner = None
