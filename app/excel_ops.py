@@ -120,9 +120,22 @@ class Target:
             "열: " + ", ".join(cols),
             f"결과 시작 열: {free} (그 왼쪽은 사용 중)",
             f"Excel 버전 {self.xl.Version}, 동적 배열 함수 {'지원함' if dynamic_arrays(self.ws) else '지원 안 함'}",
+            *self.quality(),
             "샘플 5행:", *sample,
             *self.outside(),
         ])
+
+    def quality(self):
+        """열별 빈 칸·글자로 저장된 숫자 수. AI가 이를 모르면 집계에서 그 행을 조용히 빠뜨린다."""
+        v = self.region.Value2[1:]
+        notes = []
+        for j, h in enumerate(self.headers):
+            col = [(row[j],) for row in v]
+            blank = sum(1 for (x,) in col if x is None or (isinstance(x, str) and not x.strip()))
+            text_num = numeric_text(col)
+            if blank or text_num:
+                notes.append(f"{h}: " + ", ".join(p for p in (blank and f"빈 칸 {blank}개", text_num and f"숫자처럼 보이는 글자 {text_num}개") if p))
+        return ["열별 주의할 값: " + "; ".join(notes)] if notes else []
 
     def outside(self, limit=40):
         """표 오른쪽에 이미 있는 내용(이전 작업 결과 등). 펼쳐진 수식은 실제 범위까지 알려줘야
