@@ -8,6 +8,10 @@ class PlanError(Exception):
     """사용자에게 그대로 보여줄 실패 이유."""
 
 
+class FormulaError(PlanError):
+    """AI가 만든 수식 자체가 잘못된 경우. 되돌린 뒤 AI에게 고치게 할 수 있다."""
+
+
 # --- 계획 검사 (PRD 8장: 허용된 작업만, 외부 통신·다른 파일·매크로 차단) ---
 ADDRESS = re.compile(r"^\$?[A-Z]{1,3}\$?[1-9]\d*(:\$?[A-Z]{1,3}\$?[1-9]\d*)?$")
 BLOCKED_FN = re.compile(r"\b(WEBSERVICE|RTD|CALL|REGISTER(\.ID)?|HYPERLINK|IMAGE|STOCKHISTORY|CUBE[A-Z]*|EXEC)\s*\(", re.I)
@@ -241,15 +245,20 @@ def _execute(t, plan, stage):
             else:
                 r.Value2 = w["content"]
         xl.Calculate()
-        errs = {}
+        errs, broken = {}, []
         for w, r in zip(plan["writes"], ranges):
-            out = r.SpillingToRange if r.Count == 1 and r.HasSpill else r
-            for k, v in errors_in(out.Value2).items():
+            out = r.SpillingToRange if r.Count == 1 and dyn and r.HasSpill else r
+            found = errors_in(out.Value2)
+            for k, v in found.items():
                 errs[k] = errs.get(k, 0) + v
+            # 결과 칸이 전부 오류면 데이터 탓이 아니라 수식이 잘못된 것
+            if w["content"].startswith("=") and sum(found.values()) == out.Count:
+                broken.append(f"{w['address']} {w['content'][:80]} → {', '.join(found)}")
         fatal = {k: v for k, v in errs.items() if k not in DATA_ERRORS}
-        if fatal:
-            raise PlanError("수식이 오류를 냈습니다(" + ", ".join(f"{k} {v}칸" for k, v in fatal.items())
-                            + "). 지원하지 않는 함수이거나 결과가 들어갈 자리가 막혀 있을 수 있습니다.")
+        if fatal or broken:
+            detail = ", ".join(f"{k} {v}칸" for k, v in errs.items())
+            raise FormulaError(f"수식이 오류를 냈습니다({detail}). 결과 칸이 모두 오류이거나 지원하지 않는 함수, "
+                               "결과가 들어갈 자리가 막혀 있을 수 있습니다." + "".join(f"\n  {b}" for b in broken))
         for w in plan["writes"][:12]:
             done.append(f"입력: {w['address']}  {w['content']}")
         if len(plan["writes"]) > 12:

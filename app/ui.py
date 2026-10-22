@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLa
 
 from . import ai, classify
 from .excel_conn import ExcelError, active_sheet, list_files, read_summary
-from .excel_ops import (PlanError, Target, Undo, column_values, execute, fingerprint, validate,
+from .excel_ops import (FormulaError, PlanError, Target, Undo, column_values, execute, fingerprint, validate,
                         write_classification)
 
 
@@ -319,12 +319,16 @@ class Window(QWidget):
                 return
         self.entry.clear()
         self.say(text, "me")
-        self.set_busy("AI가 요청을 해석하는 중…")
+        self.ask(text, t, info, before)
+
+    def ask(self, text, t, info, before, retry=False):
+        """AI에 계획을 요청한다. retry=True는 수식 오류를 고치는 두 번째 시도(한 번만)."""
+        self.set_busy("AI가 수식 오류를 고치는 중…" if retry else "AI가 요청을 해석하는 중…")
 
         def work():
             try:
                 plan, tokens = self.planner.plan(info, text)
-                self.bridge.done.emit((plan, tokens, t, before), None)
+                self.bridge.done.emit((plan, tokens, t, before, retry), None)
             except Exception as e:
                 msg = ai.explain(e) or f"예상하지 못한 오류: {e}"
                 self.bridge.done.emit(None, msg + " (Excel은 바꾸지 않았습니다)")
@@ -351,7 +355,7 @@ class Window(QWidget):
         if err:
             self.say(err, "err")
             return
-        plan, tokens, t, before = res
+        plan, tokens, t, before, retry = res
         tail = f"\n(토큰 {tokens:,})"
         if plan["action"] == "ask":
             self.say((plan["question"] or plan["summary"]) + tail)
@@ -366,7 +370,7 @@ class Window(QWidget):
         if plan["classify"]:
             self.start_classify(plan, t, before, tokens)
             return
-        self.finish(plan, t, before, None, tail)
+        self.finish(plan, t, before, None, tail, retry)
 
     def start_classify(self, plan, t, before, tokens):
         """분류는 AI 호출이 많아 작업 스레드에서 하고, 끝나면 화면 스레드에서 Excel에 쓴다."""
@@ -401,15 +405,30 @@ class Window(QWidget):
         plan, t, before, tokens, cls, values = res
         self.finish(plan, t, before, (cls, values), f"\n(토큰 {tokens + cls['tokens']:,})")
 
-    def finish(self, plan, t, before, cls, tail):
+    def finish(self, plan, t, before, cls, tail, retry=True):
+        fix = None
         try:
             self.say(self.apply(plan, t, before, cls) + tail)
+        except FormulaError as e:
+            if retry:
+                self.say(str(e), "err")
+            else:
+                # 수식이 틀렸으면 이미 원래대로 되돌린 상태: 오류를 알려주고 AI가 한 번만 고쳐 다시 실행
+                self.say(f"{e}\n→ AI에게 오류를 알려 수식을 고쳐 다시 실행합니다.", "err")
+                fix = f"방금 계획을 실행했더니 수식 오류가 나서 되돌렸다:\n{e}\n같은 요청을 오류가 나지 않는 수식으로 다시 계획하라."
         except PlanError as e:
             self.say(str(e), "err")
         except Exception as e:  # 예상 못 한 Excel 오류에도 창이 '적용 중'에 멈추지 않게
             self.say(f"Excel 작업 중 오류가 났습니다: {e}", "err")
         finally:
             self.set_busy("")
+        if fix:
+            try:
+                info, before = t.info(), fingerprint(t.ws)
+            except Exception as e2:
+                self.say(f"시트를 다시 읽지 못해 재시도하지 않았습니다: {e2}", "err")
+                return
+            self.ask(fix, t, info, before, retry=True)
 
     def apply(self, plan, t, before, cls=None):
         """대상 재확인 → 되돌리기 사본 → 즉시 실행. 실패하면 원래대로 되돌리고 PlanError."""
@@ -437,7 +456,7 @@ class Window(QWidget):
             except Exception as e2:
                 state = f"자동 복구도 실패했습니다({e2}). 파일을 저장하지 말고 닫은 뒤 다시 여는 것을 권합니다."
             reason = str(e) if isinstance(e, PlanError) else f"Excel 실행 오류: {e}"
-            raise PlanError(f"{reason}\n→ {state}")
+            raise (FormulaError if isinstance(e, FormulaError) else PlanError)(f"{reason}\n→ {state}")
         finally:
             t.xl.ScreenUpdating = True
         u.after()
