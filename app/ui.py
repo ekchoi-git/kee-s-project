@@ -1,5 +1,6 @@
 """대화창. 상단: Excel 연결·작업 대상, 가운데: 대화, 하단: 입력."""
 import threading
+import time
 
 from PySide6.QtCore import QByteArray, QObject, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QPainter, QPixmap
@@ -92,68 +93,102 @@ class Bridge(QObject):
 
 STYLE = """
 QWidget { font-family: 'Malgun Gothic'; font-size: 13px; background: white; }
-#status { color: #6b7280; }
-#target { background: #f3f4f6; border-radius: 8px; padding: 8px 12px; }
-#target[bad="true"] { background: #fcebeb; color: #791f1f; }
-#me { background: #e6f1fb; color: #0c447c; border-radius: 12px; padding: 8px 12px; }
-#bot { background: #f3f4f6; border-radius: 12px; padding: 10px 12px; }
-#err { background: #fcebeb; color: #791f1f; border-radius: 12px; padding: 10px 12px; }
+#title { font-size: 17px; font-weight: bold; color: #1f1f1d; }
+#head { border-bottom: 1px solid #e8e6df; }
+#hello { font-size: 15px; color: #1f1f1d; }
+#hint { color: #888780; font-size: 12px; }
+#pill { border: 1px solid #dcdad3; border-radius: 17px; padding: 7px 16px; background: white; color: #1f1f1d; }
+#pill:hover { background: #f5f4ef; }
+#busy { color: #b4532a; padding: 0 4px; }
+#dot { color: #3b9a3b; font-size: 11px; background: transparent; }
+#dot[bad="true"] { color: #c0392b; }
+#target { color: #5f5e5a; font-size: 12px; background: transparent; }
+#target[bad="true"] { color: #a32d2d; }
+#me { background: #f1efe8; color: #1f1f1d; border-radius: 14px; padding: 8px 12px; }
+#bot { background: white; color: #1f1f1d; border: 1px solid #e8e6df; border-radius: 14px; padding: 10px 12px; }
+#err { background: #fcebeb; color: #791f1f; border-radius: 14px; padding: 10px 12px; }
 QLineEdit, QComboBox { border: 1px solid #d1d5db; border-radius: 8px; padding: 7px 10px; }
 QPushButton { border: 1px solid #d1d5db; border-radius: 8px; padding: 7px 14px; background: white; }
 QPushButton:hover { background: #f3f4f6; }
 #send { background: #111827; color: white; border: none; }
-#bottombar { background: #f7f6f2; border-radius: 12px; }
-#inputbox { border: 1px solid #dcdad3; border-radius: 20px; background: white; }
-#inputbox QLineEdit { border: none; padding: 6px 4px 6px 14px; background: transparent; color: #1f1f1d; }
+#composer { border: 1px solid #dcdad3; border-radius: 16px; background: #f5f4ef; }
+#ctx { background: transparent; }
+#ctx QComboBox { border: none; background: transparent; padding: 2px 4px; font-weight: bold; color: #1f1f1d; }
+#textbtn { border: none; background: transparent; color: #5f5e5a; padding: 2px 6px; font-size: 12px; }
+#textbtn:hover { color: #1f1f1d; background: transparent; }
+#inputbox { border: 1px solid #dcdad3; border-radius: 16px; background: white; }
+#entry { border: none; padding: 6px 8px; background: transparent; color: #1f1f1d; font-size: 14px; }
 #sendicon { background: #1f1f1d; border: none; border-radius: 16px; padding: 0; }
 #sendicon:hover { background: #3a3a37; }
 #sendicon:disabled { background: #b4b2a9; }
-#undoicon { border: 1px solid #dcdad3; border-radius: 20px; padding: 0; background: white; }
+#undoicon { border: none; border-radius: 16px; padding: 0; background: transparent; }
 #undoicon:hover { background: #f1efe8; }
-#undoicon:disabled { border-color: #e8e6df; }
-#apikey { background: #2f3ce8; color: white; border: none; border-radius: 16px; padding: 7px 26px;
+#apikey { background: #2f3ce8; color: white; border: none; border-radius: 14px; padding: 6px 18px;
           font-weight: bold; letter-spacing: 1px; }
 #apikey:hover { background: #2531c4; }
 """
 
 
+EXAMPLES = ["회사별 연도별 금액 합계를 수식으로 만들어줘", "계정명별 금액 합계를 피벗으로 만들어줘",
+            "금액 1억 넘는 것만 보이게 하고 큰 순서로 정렬해줘", "거래 설명을 보고 유형을 분류해줘"]
+
+# 작업 중 멘트: 단계마다 몇 초씩 바꿔 보여준다 (Claude Code의 작업 중 표시처럼)
+PHRASES = {
+    "AI가 요청을 해석하는 중…": ["요청을 읽는 중…", "표 구조를 살펴보는 중…", "작업 방법을 궁리하는 중…", "수식을 다듬는 중…", "계획을 정리하는 중…"],
+    "AI가 수식 오류를 고치는 중…": ["오류 원인을 살펴보는 중…", "수식을 다시 짜는 중…", "검산할 방법을 찾는 중…"],
+    "Excel에 적용하는 중…": ["Excel에 적는 중…"],
+}
+SPIN = "·✢✳✶✻✽✻✶✳✢"
+
+
 class Window(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Excel AI 도우미")
-        self.resize(640, 720)
+        self.setWindowTitle("셀리")
+        self.resize(420, 760)
         self.files = []
         self.sheet = None       # 지금 작업 대상 시트 개체
         self.sheet_key = None   # (파일, 시트 이름): 바뀌었을 때만 다시 읽기 위함
 
-        self.status = QLabel("Excel 연결 확인 중…")
-        self.status.setObjectName("status")
-        refresh = QPushButton("새로고침")
-        refresh.clicked.connect(self.refresh)
+        # 머리: 제목 + API KEY
+        title = QLabel("셀리")
+        title.setObjectName("title")
         self.key_btn = QPushButton("API KEY")
         self.key_btn.setObjectName("apikey")
         self.key_btn.setCursor(Qt.PointingHandCursor)
         self.key_btn.clicked.connect(self.edit_key)
-        top = QHBoxLayout()
-        top.addWidget(self.status)
+        head = QFrame()
+        head.setObjectName("head")
+        top = QHBoxLayout(head)
+        top.setContentsMargins(16, 10, 12, 10)
+        top.addWidget(title)
         top.addStretch(1)
         top.addWidget(self.key_btn)
-        top.addWidget(refresh)
 
-        self.file_combo = QComboBox()
-        self.file_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-        self.file_combo.currentIndexChanged.connect(lambda: self.update_sheet(force=True))
-        pick = QHBoxLayout()
-        pick.addWidget(QLabel("파일"))
-        pick.addWidget(self.file_combo, 1)
-
-        # 작업 대상 안내는 대화에 쌓지 않고 이 한 칸을 계속 갱신한다
-        self.target = QLabel("")
-        self.target.setObjectName("target")
-        self.target.setWordWrap(True)
-
+        # 대화 영역 (처음에는 예시 요청 버튼)
         self.chat = QVBoxLayout()
         self.chat.setAlignment(Qt.AlignTop)
+        self.chat.setContentsMargins(14, 14, 14, 14)
+        self.chat.setSpacing(10)
+        self.empty = QWidget()
+        ev = QVBoxLayout(self.empty)
+        ev.setContentsMargins(0, 90, 0, 0)
+        ev.setSpacing(10)
+        hello = QLabel("이런 요청부터 해보세요:")
+        hello.setObjectName("hello")
+        ev.addWidget(hello, alignment=Qt.AlignHCenter)
+        for ex in EXAMPLES:
+            b = QPushButton(ex)
+            b.setObjectName("pill")
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda _=False, ex=ex: (self.entry.setText(ex), self.entry.setFocus()))
+            ev.addWidget(b, alignment=Qt.AlignHCenter)
+        hint = QLabel("Excel에서 파일을 열고 아래에서 파일을 고른 뒤\n하고 싶은 일을 말로 적어주세요")
+        hint.setObjectName("hint")
+        hint.setAlignment(Qt.AlignHCenter)
+        ev.addSpacing(8)
+        ev.addWidget(hint, alignment=Qt.AlignHCenter)
+        self.chat.addWidget(self.empty)
         body = QWidget()
         body.setLayout(self.chat)
         self.scroll = QScrollArea()
@@ -161,8 +196,42 @@ class Window(QWidget):
         self.scroll.setFrameShape(QFrame.NoFrame)
         self.scroll.setWidget(body)
 
+        # 작업 중 멘트
+        self.busy = QLabel("")
+        self.busy.setObjectName("busy")
+        self.busy_msg, self.busy_tick = "", 0
+        self.spinner = QTimer(self)
+        self.spinner.timeout.connect(self.spin)
+
+        # 입력 묶음: 위는 작업 대상 칩(파일·시트), 아래는 입력창과 버튼
+        self.status = QLabel("●")
+        self.status.setObjectName("dot")
+        self.file_combo = QComboBox()
+        self.file_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.file_combo.currentIndexChanged.connect(lambda: self.update_sheet(force=True))
+        refresh = QPushButton("새로고침")
+        refresh.setObjectName("textbtn")
+        refresh.setCursor(Qt.PointingHandCursor)
+        refresh.clicked.connect(self.refresh)
+        # 작업 대상 안내는 대화에 쌓지 않고 이 한 칸을 계속 갱신한다
+        self.target = QLabel("")
+        self.target.setObjectName("target")
+        self.target.setWordWrap(True)
+        ctx = QFrame()
+        ctx.setObjectName("ctx")
+        cv = QVBoxLayout(ctx)
+        cv.setContentsMargins(12, 8, 10, 8)
+        cv.setSpacing(2)
+        crow = QHBoxLayout()
+        crow.addWidget(self.status)
+        crow.addWidget(self.file_combo, 1)
+        crow.addWidget(refresh)
+        cv.addLayout(crow)
+        cv.addWidget(self.target)
+
         self.entry = QLineEdit()
-        self.entry.setPlaceholderText("하고 싶은 일을 말로 적어주세요")
+        self.entry.setObjectName("entry")
+        self.entry.setPlaceholderText("셀리에게 하고 싶은 일을 말로 적어주세요")
         self.entry.returnPressed.connect(self.send)
         self.send_btn = QPushButton()
         self.send_btn.setIcon(line_icon(ARROW_UP, "#ffffff", "#ffffff", 18))
@@ -173,32 +242,34 @@ class Window(QWidget):
         self.send_btn.setAccessibleName("보내기")
         self.send_btn.setCursor(Qt.PointingHandCursor)
         self.send_btn.clicked.connect(self.send)
-        self.busy = QLabel("")
-        self.busy.setObjectName("status")
         self.undo_btn = QPushButton()
         self.undo_btn.setIcon(line_icon(ARROW_BACK_UP, "#5f5e5a", "#d3d1c7"))
         self.undo_btn.setIconSize(QSize(20, 20))
         self.undo_btn.setObjectName("undoicon")
-        self.undo_btn.setFixedSize(40, 40)
+        self.undo_btn.setFixedSize(32, 32)
         self.undo_btn.setToolTip("직전 AI 작업 되돌리기")
         self.undo_btn.setAccessibleName("직전 AI 작업 되돌리기")
         self.undo_btn.setCursor(Qt.PointingHandCursor)
         self.undo_btn.clicked.connect(self.undo)
         self.undo_btn.setEnabled(False)
-        box = QFrame()  # 보내기 버튼이 입력창 안 오른쪽에 들어간 둥근 입력창
+        box = QFrame()
         box.setObjectName("inputbox")
-        box.setFixedHeight(42)  # 둥근 정도(20)가 높이의 절반을 넘으면 Qt가 모서리를 각지게 그림
-        inner = QHBoxLayout(box)
-        inner.setContentsMargins(2, 4, 4, 4)
-        inner.addWidget(self.entry, 1)
-        inner.addWidget(self.send_btn)
+        iv = QVBoxLayout(box)
+        iv.setContentsMargins(6, 8, 8, 8)
+        iv.setSpacing(4)
+        iv.addWidget(self.entry)
+        irow = QHBoxLayout()
+        irow.addWidget(self.undo_btn)
+        irow.addStretch(1)
+        irow.addWidget(self.send_btn)
+        iv.addLayout(irow)
         self.bottombar = QFrame()
-        self.bottombar.setObjectName("bottombar")
-        bottom = QHBoxLayout(self.bottombar)
-        bottom.setContentsMargins(12, 12, 12, 12)
-        bottom.setSpacing(8)
-        bottom.addWidget(box, 1)
-        bottom.addWidget(self.undo_btn)
+        self.bottombar.setObjectName("composer")
+        bottom = QVBoxLayout(self.bottombar)
+        bottom.setContentsMargins(0, 0, 0, 0)
+        bottom.setSpacing(0)
+        bottom.addWidget(ctx)
+        bottom.addWidget(box)
 
         self.planner = None
         self.last = None  # 직전 AI 작업의 Undo (1단계만, PRD FR-07)
@@ -208,12 +279,16 @@ class Window(QWidget):
         self.bridge.classified.connect(self.on_classified)
 
         root = QVBoxLayout(self)
-        root.addLayout(top)
-        root.addLayout(pick)
-        root.addWidget(self.target)
+        root.setContentsMargins(0, 0, 0, 12)
+        root.setSpacing(0)
+        root.addWidget(head)
         root.addWidget(self.scroll, 1)
-        root.addWidget(self.busy)
-        root.addWidget(self.bottombar)
+        pad = QVBoxLayout()
+        pad.setContentsMargins(12, 0, 12, 0)
+        pad.setSpacing(6)
+        pad.addWidget(self.busy)
+        pad.addWidget(self.bottombar)
+        root.addLayout(pad)
 
         # Excel에서 시트를 바꾸면 따라간다 (1초마다 확인, 바뀐 경우에만 다시 읽음)
         self.timer = QTimer(self)
@@ -223,11 +298,16 @@ class Window(QWidget):
         self.show_key()
 
     def say(self, text, kind="bot"):
+        self.empty.hide()  # 대화가 시작되면 예시 버튼은 숨김
         label = QLabel(text)
         label.setObjectName(kind)
         label.setWordWrap(True)
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        label.setMaximumWidth(500)
+        maxw = 340 if kind == "me" else 380
+        label.setMaximumWidth(maxw)
+        # 줄바꿈 글상자는 Qt가 폭을 좁게 잡으므로, 글이 들어갈 만큼은 넓힌다
+        fm = label.fontMetrics()
+        label.setMinimumWidth(min(maxw, max(fm.horizontalAdvance(l) for l in text.splitlines() or [""]) + 48))
         row = QHBoxLayout()  # 줄바꿈 높이가 제대로 계산되도록 정렬은 여백(stretch)으로 처리
         if kind == "me":
             row.addStretch(1)
@@ -239,9 +319,10 @@ class Window(QWidget):
 
     def show_target(self, text, bad=False):
         self.target.setText(text)
-        self.target.setProperty("bad", bad)
-        self.target.style().unpolish(self.target)
-        self.target.style().polish(self.target)
+        for w in (self.target, self.status):  # 대상 문구와 연결 점을 함께 빨갛게/원래대로
+            w.setProperty("bad", bad)
+            w.style().unpolish(w)
+            w.style().polish(w)
 
     def refresh(self):
         """열린 파일을 다시 찾는다. 이전에 고른 파일이 아직 열려 있으면 그대로 유지한다."""
@@ -252,13 +333,12 @@ class Window(QWidget):
             self.files = list_files()
         except ExcelError as e:
             self.files, self.sheet, self.sheet_key = [], None, None
-            self.status.setText("연결 안 됨")
             self.show_target(str(e), bad=True)
         else:
             self.file_combo.addItems([f["name"] for f in self.files])
             if prev in [f["name"] for f in self.files]:
                 self.file_combo.setCurrentText(prev)
-            self.status.setText("● Excel 연결됨")
+            self.status.setToolTip("Excel 연결됨")
         self.file_combo.blockSignals(False)
         self.update_sheet(force=True)
 
@@ -346,9 +426,27 @@ class Window(QWidget):
         self.show_key()
 
     def set_busy(self, msg):
-        self.busy.setText(msg)
+        if msg and not self.busy_msg:
+            self.busy_tick, self.busy_start = 0, time.monotonic()
+            self.spinner.start(150)
+        elif not msg:
+            self.spinner.stop()
+            self.busy.setText("")
+        self.busy_msg = msg
+        if msg:
+            self.spin()
         self.send_btn.setEnabled(not msg)
         self.undo_btn.setEnabled(not msg and self.last is not None)
+
+    def spin(self):
+        """작업 중 멘트: 별 모양이 돌고, 단계 문구가 3초마다 바뀌며 경과 시간을 보여준다."""
+        if not self.busy_msg:
+            return
+        self.busy_tick += 1
+        phrases = PHRASES.get(self.busy_msg, [self.busy_msg])
+        secs = int(time.monotonic() - self.busy_start)
+        phrase = phrases[(secs // 3) % len(phrases)]
+        self.busy.setText(f"{SPIN[self.busy_tick % len(SPIN)]} {phrase}  ({secs}초)")
 
     def on_plan(self, res, err):
         self.set_busy("")
@@ -380,7 +478,7 @@ class Window(QWidget):
         except Exception as e:
             self.say(f"'{c['column']}' 열을 읽지 못했습니다: {e}", "err")
             return
-        self.set_busy(f"'{c['column']}' 열을 분류하는 중… (설명 글이 OpenAI로 전송됩니다)")
+        self.set_busy(f"'{c['column']}' 열의 설명을 OpenAI로 보내 분류하는 중…")
         client = self.planner.client
 
         def work():
@@ -395,7 +493,7 @@ class Window(QWidget):
         threading.Thread(target=work, daemon=True).start()
 
     def on_progress(self, done, total):
-        self.busy.setText(f"분류하는 중… 서로 다른 설명 {done:,}/{total:,}건 처리")
+        self.busy_msg = f"설명을 읽고 분류하는 중… {done:,}/{total:,}건"
 
     def on_classified(self, res, err):
         self.set_busy("")
@@ -487,5 +585,9 @@ def main():
     app = QApplication([])
     app.setStyleSheet(STYLE)
     win = Window()
+    # Excel 옆에 나란히 보이도록 화면 오른쪽에 세로로 길게 붙인다
+    geo = app.primaryScreen().availableGeometry()
+    win.resize(420, geo.height() - 16)
+    win.move(geo.right() - win.width() - 8, geo.top() + 8)
     win.show()
     app.exec()
