@@ -444,7 +444,10 @@ def execute(t, plan):
         raise
     except Exception as e:
         # COM 오류 문구는 사용자가 읽을 수 없으므로 어느 단계였는지 알린다
-        raise PlanError(f"{stage[0]} 단계에서 Excel이 작업을 거부했습니다. ({getattr(e, 'excepinfo', None) and e.excepinfo[2] or e})")
+        info = getattr(e, "excepinfo", None)
+        code = info[5] if info and len(info) > 5 and info[5] else getattr(e, "hresult", None)
+        why = (info and info[2]) or (f"Excel 내부 오류 번호 0x{code & 0xFFFFFFFF:08X}" if isinstance(code, int) else str(e))
+        raise PlanError(f"{stage[0]} 단계에서 Excel이 작업을 거부했습니다. ({why})")
 
 
 def _execute(t, plan, stage):
@@ -520,10 +523,18 @@ def _execute(t, plan, stage):
                     raise PlanError(f"{w['address']}에 이미 데이터가 있어 덮어쓰지 않았습니다. 덮어쓰려면 그렇게 말씀해주세요.")
         dyn = dynamic_arrays(ws)
         for w, r in zip(plan["writes"], ranges):
-            if w["content"].startswith("=") and dyn:
-                r.Formula2 = w["content"]
-            elif w["content"].startswith("="):
-                r.Formula = w["content"]  # 동적 배열이 없는 Excel
+            if w["content"].startswith("="):
+                if len(w["content"]) > 8000:  # Excel 수식 길이 한도 8192자
+                    raise FormulaError(f"{w['address']} 수식이 {len(w['content']):,}자로 Excel 한도를 넘습니다. 더 짧은 수식으로 만들어야 합니다.")
+                try:
+                    if dyn:
+                        r.Formula2 = w["content"]
+                    else:
+                        r.Formula = w["content"]  # 동적 배열이 없는 Excel
+                except pywintypes.com_error as e:
+                    # 0x800A03EC 등: Excel이 수식 자체를 거부(문법 오류·없는 함수·잘못된 참조). 번호 대신 칸과 수식을 알려 AI가 고치게 함
+                    raise FormulaError(f"Excel이 {w['address']} 수식을 받아들이지 않았습니다(문법 오류, 지원하지 않는 함수, 잘못된 참조 등).\n"
+                                       f"  {w['address']} {w['content'][:200]}") from e
             elif "\t" in w["content"] or "\n" in w["content"]:
                 # 머리글처럼 탭·줄바꿈으로 이어 붙인 글자는 칸마다 나눠 씀(범위 전체에 같은 글자가 들어가지 않게)
                 grid = [line.split("\t") for line in w["content"].split("\n")]
