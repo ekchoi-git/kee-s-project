@@ -681,7 +681,7 @@ class Window(QWidget):
     def convert(self, ws, columns):
         """제안 버튼: 원본의 글자 숫자를 숫자로 바꾼다. 1차 결과의 수식은 다시 계산되고 피벗은 새로고침된다."""
         plan = dict(action="change", question=None, overwrite=False, edit_source=True, to_number=columns, filters=[],
-                    sorts=[], writes=[], pivot=None, classify=None, new_sheet="", confirmed=True,
+                    sorts=[], writes=[], pivot=None, classify=None, new_sheet="", formats=[], confirmed=True,
                     summary="제안에 따라 원본의 글자로 저장된 숫자를 숫자로 바꿨습니다. 앞 결과가 바뀐 값 기준으로 다시 계산되었습니다.")
         try:
             t = Target(ws)

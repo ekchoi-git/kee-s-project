@@ -49,8 +49,13 @@ def validate(plan, headers):
     bad += [f"'{c}' 열이 표에 없습니다." for c in plan["to_number"] if c not in headers]
     if plan["to_number"] and not plan["edit_source"]:
         bad.append("원본 수정 지시 없이 원본 값을 바꾸려 했습니다.")
+    for f in plan["formats"]:
+        if not ADDRESS.match(f["address"].upper()):
+            bad.append(f"'{f['address']}'는 이 시트의 셀 주소가 아닙니다.")
+        if not f["format"] or len(f["format"]) > 60:
+            bad.append(f"'{f['format']}'는 표시 형식이 아닙니다.")
     if plan["action"] == "change" and not (plan["filters"] or plan["sorts"] or plan["writes"] or plan["pivot"] or plan["classify"]
-                                           or plan["to_number"]):
+                                           or plan["to_number"] or plan["formats"]):
         bad.append("실행할 작업이 없습니다.")
     return bad
 
@@ -405,8 +410,11 @@ def fingerprint(ws):
 
 def _fingerprint(ws):
     r = ws.UsedRange
-    filt = ws.AutoFilterMode, [lo.AutoFilter.FilterMode if lo.AutoFilter else None for lo in ws.ListObjects]
-    raw = repr((r.Address, r.Formula2, r.Value2, filt, ws.PivotTables().Count, [s.Name for s in ws.Parent.Worksheets]))
+    # 컬렉션을 for로 돌면 Excel이 바쁠 때 pywin32가 TypeError로 바꿔 버려 재시도가 안 되므로 번호로 꺼냄
+    los = [ws.ListObjects(i) for i in range(1, ws.ListObjects.Count + 1)]
+    filt = ws.AutoFilterMode, [lo.AutoFilter.FilterMode if lo.AutoFilter else None for lo in los]
+    raw = repr((r.Address, r.Formula2, r.Value2, filt, ws.PivotTables().Count,
+                [ws.Parent.Worksheets(i).Name for i in range(1, ws.Parent.Worksheets.Count + 1)]))
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -537,6 +545,11 @@ def _execute(t, plan, stage):
             done += [f"원본 수정: {w['address']} ← {w['content'][:60]}" for w, r in zip(plan["writes"], ranges)
                      if out_ws is ws and xl.Intersect(r, t.region) is not None]
         done += assumption_notes(t, [w["content"] for w in plan["writes"] if w["content"].startswith("=")], out_ws is ws)
+
+    stage[0] = "표시 형식"
+    for f in plan["formats"]:
+        ws.Range(f["address"]).NumberFormat = f["format"]  # 값·수식은 그대로, 보이는 모양만 바뀜
+        done.append(f"표시 형식: {f['address']} → {f['format']} (실제 값은 그대로)")
 
     stage[0] = "피벗"
     if plan["pivot"]:
