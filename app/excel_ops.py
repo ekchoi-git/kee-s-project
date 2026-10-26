@@ -329,7 +329,8 @@ class Target:
             *([f"합계 줄: {self.total_row}행 (표 바로 아래 붙은 합계라 데이터 범위에 넣지 않음)"] if self.total_row else []),
             *[f"이 표는 수식 결과(펼쳐진 배열): {a}: {f}  → {rng}에 펼쳐짐" for a, f, rng in self.spills()],
             "열: " + ", ".join(cols),
-            f"결과 시작 열: {free} (그 왼쪽은 사용 중)",
+            f"표 바로 아래 행: {last + 1}행, 표 바로 오른쪽 열: {col_letter(r.Column + r.Columns.Count)}열 (합계 줄·합계 열은 여기에)",
+            f"결과 시작 열: {free} (따로 떨어진 결과를 놓을 때만, 그 왼쪽은 사용 중)",
             f"Excel 버전 {self.xl.Version}, 동적 배열 함수 {'지원함' if dynamic_arrays(self.ws) else '지원 안 함'}",
             *self.quality(),
             "샘플 5행:", *sample,
@@ -565,6 +566,7 @@ def _execute(t, plan, stage):
         else:  # 결과가 열 폭보다 길면 5.24E+10·#### 로 보이므로 넓히기만 함(원래 더 넓으면 그대로)
             for r in ranges:
                 out = r.SpillingToRange if r.Count == 1 and dyn and r.HasSpill else r
+                inherit_format(t, out)
                 for k in range(1, out.Columns.Count + 1):
                     col = out.Columns(k)
                     old = col.ColumnWidth
@@ -601,6 +603,31 @@ def _execute(t, plan, stage):
         done.append(f"피벗: 새 시트 '{name}' (행 {', '.join(p['rows']) or '-'} / 열 {', '.join(p['columns']) or '-'})")
         done += pivot_notes(t, p)
     return done
+
+
+def inherit_format(t, out):
+    """표 바로 아래 행(열별 합계)·바로 오른쪽 열(행별 합계)에 붙여 쓴 칸은 표 숫자 형식을 이어받는다.
+    (예: 표가 1,000 단위로 보이는데 합계만 원래 숫자로 보이면 합계가 안 맞아 보임) 이미 형식이 있는 칸은 그대로."""
+    r, ws = t.region, t.ws
+    top, bottom, left, right = r.Row + 1, r.Row + r.Rows.Count - 1, r.Column, r.Column + r.Columns.Count - 1
+    if bottom < top:
+        return
+    o_top, o_left = out.Row, out.Column
+    o_bottom, o_right = o_top + out.Rows.Count - 1, o_left + out.Columns.Count - 1
+
+    general = {"General", "G/표준", t.wb.Styles("Normal").NumberFormat}  # 한국어 Excel은 기본 형식 이름이 'G/표준'
+
+    def copy(cell_from, row, col):
+        cell = ws.Cells(row, col)
+        if cell.NumberFormat in general:
+            cell.NumberFormat = cell_from.NumberFormat
+
+    if o_top <= bottom + 1 <= o_bottom:  # 열별 합계 행: 각 열은 그 열 첫 데이터 칸의 형식
+        for c in range(max(left, o_left), min(right, o_right) + 1):
+            copy(ws.Cells(top, c), bottom + 1, c)
+    if o_left <= right + 1 <= o_right:  # 행별 합계 열(과 아래 모서리): 마지막 데이터 열의 형식
+        for row in range(max(top, o_top), min(bottom + 1, o_bottom) + 1):
+            copy(ws.Cells(min(row, bottom), right), row, right + 1)
 
 
 def new_sheet(t, name):
