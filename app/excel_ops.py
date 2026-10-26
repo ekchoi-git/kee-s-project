@@ -299,6 +299,22 @@ class Target:
         if self.region.Rows.Count < 2 or not any(self.headers):
             raise PlanError("머리글 있는 표를 찾지 못했습니다. 머리글 한 줄과 데이터가 붙어 있는 표가 필요합니다.")
 
+    def spills(self):
+        """표의 첫 데이터 행이 펼쳐진 수식(동적 배열)에서 온 것이면 [(시작 칸, 수식, 펼쳐진 범위)]. 이런 표는 Excel 정렬·필터가 거부한다."""
+        if not dynamic_arrays(self.ws):
+            return []
+        out, seen = [], set()
+        for j in range(1, self.region.Columns.Count + 1):
+            cell = self.region.Cells(2, j)
+            if not cell.HasSpill:
+                continue
+            top = cell.SpillParent
+            a = top.Address.replace("$", "")
+            if a not in seen:
+                seen.add(a)
+                out.append((a, top.Formula2, top.SpillingToRange.Address.replace("$", "")))
+        return out
+
     def info(self):
         r = self.region
         first, last = r.Row, r.Row + r.Rows.Count - 1
@@ -311,6 +327,7 @@ class Target:
             f"통합 문서: {self.wb.Name} / 시트: {self.ws.Name}",
             f"데이터 범위: {r.Address} (머리글 {first}행, 데이터 {first + 1}~{last}행, {last - first}행)",
             *([f"합계 줄: {self.total_row}행 (표 바로 아래 붙은 합계라 데이터 범위에 넣지 않음)"] if self.total_row else []),
+            *[f"이 표는 수식 결과(펼쳐진 배열): {a}: {f}  → {rng}에 펼쳐짐" for a, f, rng in self.spills()],
             "열: " + ", ".join(cols),
             f"결과 시작 열: {free} (그 왼쪽은 사용 중)",
             f"Excel 버전 {self.xl.Version}, 동적 배열 함수 {'지원함' if dynamic_arrays(self.ws) else '지원 안 함'}",
@@ -458,6 +475,10 @@ def _execute(t, plan, stage):
 
     # 필터를 먼저 걸면 Excel이 보이는 행만 정렬하므로 정렬이 먼저
     stage[0] = "정렬"
+    if (plan["sorts"] or plan["filters"]) and t.spills():
+        a = ", ".join(s[0] for s in t.spills())
+        raise PlanError(f"이 표는 {a} 수식이 펼쳐진 결과라 Excel 정렬·필터를 쓸 수 없습니다. "
+                        "'수식을 고쳐서 정렬해줘'처럼 요청하면 수식 자체를 바꿔 순서를 맞춥니다.")
     if plan["sorts"]:
         sorter = t.lo.Sort if t.lo else ws.Sort
         sorter.SortFields.Clear()
