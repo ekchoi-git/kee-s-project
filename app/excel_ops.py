@@ -162,6 +162,28 @@ def assumption_notes(t, formulas, same_sheet):
     return notes
 
 
+def pivot_notes(t, p):
+    """피벗은 글자 숫자를 합계에 넣지 못하고 빈 칸은 '(비어 있음)'으로 묶는다. 그 영향을 건수·위치·금액으로 적는다."""
+    notes = []
+    for v in p["values"]:
+        if v["func"] == "count":
+            continue
+        j = t.headers.index(v["field"])
+        letter = col_letter(t.region.Column + j)
+        tn = rows_where(t, j, lambda x: _num(x) is not None)
+        if tn:
+            notes.append(f"⚠ 임의 판단: {letter}열 '{v['field']}'의 글자로 저장된 숫자 {len(tn)}칸({spots(letter, [r for r, _ in tn])})은 "
+                         f"피벗 합계에서 빠짐 → 원본 값 기준 {sum(_num(x) for _, x in tn):,.0f} 적음. "
+                         "포함하려면 '원본 숫자로 바꿔줘'라고 말씀해주세요.")
+    for c in p["rows"] + p["columns"]:
+        j = t.headers.index(c)
+        letter = col_letter(t.region.Column + j)
+        bl = rows_where(t, j, blank)
+        if bl:
+            notes.append(f"⚠ 임의 판단: {letter}열 '{c}' 빈 칸 {len(bl)}칸({spots(letter, [r for r, _ in bl])})은 피벗에서 '(비어 있음)' 묶음으로 표시")
+    return notes
+
+
 def numeric_text(values):
     """숫자처럼 보이지만 글자로 저장된 칸 수. 정렬·필터에서 숫자로 취급되지 않는다."""
     n = 0
@@ -427,6 +449,7 @@ def _execute(t, plan, stage):
             pt.AddDataField(pt.PivotFields(v["field"]), f"{v['field']} {v['func']}", PIVOT_FUNC[v["func"]])
         ws.Activate()
         done.append(f"피벗: 새 시트 '{name}' (행 {', '.join(p['rows']) or '-'} / 열 {', '.join(p['columns']) or '-'})")
+        done += pivot_notes(t, p)
     return done
 
 
