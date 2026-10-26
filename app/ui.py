@@ -1,10 +1,11 @@
 """대화창. 상단: Excel 연결·작업 대상, 가운데: 대화, 하단: 입력."""
 import html
+import math
 import threading
 import time
 
-from PySide6.QtCore import QByteArray, QObject, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QIcon, QPainter, QPixmap
+from PySide6.QtCore import QByteArray, QObject, QPointF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget)
@@ -144,7 +145,29 @@ PHRASES = {
     "AI가 수식 오류를 고치는 중…": ["오류 원인을 살펴보는 중…", "수식을 다시 짜는 중…", "검산할 방법을 찾는 중…"],
     "Excel에 적용하는 중…": ["Excel에 적는 중…"],
 }
-SPIN = "·✢✳✶✻✽✻✶✳✢"
+SPIN_COLORS = ["#0b3fa8", "#0e4fc4", "#1c63de", "#2f76e8", "#4589ec", "#5f9cf0",
+               "#7ab0f3", "#95c3f6", "#aed5f8", "#c4e3fa", "#d6eefc", "#e3f5fd"]  # 진한 파랑 → 연한 하늘색
+
+
+class Spinner(QWidget):
+    """작업 중 아이콘: 원을 이룬 점 12개. step이 바뀔 때마다 진한 색이 한 칸씩 돈다."""
+
+    def __init__(self, size=18):
+        super().__init__()
+        self.step = 0
+        self.setFixedSize(size, size)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        s = self.width()
+        c, rad, dot = s / 2, s * 0.38, s * 0.075
+        for i in range(12):
+            a = i / 12 * 2 * math.pi - math.pi / 2
+            p.setBrush(QColor(SPIN_COLORS[(i - self.step) % 12]))
+            p.drawEllipse(QPointF(c + rad * math.cos(a), c + rad * math.sin(a)), dot, dot)
 
 
 class Window(QWidget):
@@ -208,6 +231,8 @@ class Window(QWidget):
         # 작업 중 멘트
         self.busy = QLabel("")
         self.busy.setObjectName("busy")
+        self.dots = Spinner()
+        self.dots.hide()
         self.busy_msg, self.busy_tick = "", 0
         self.spinner = QTimer(self)
         self.spinner.timeout.connect(self.spin)
@@ -295,7 +320,11 @@ class Window(QWidget):
         pad = QVBoxLayout()
         pad.setContentsMargins(12, 0, 12, 0)
         pad.setSpacing(6)
-        pad.addWidget(self.busy)
+        busy_row = QHBoxLayout()
+        busy_row.setSpacing(6)
+        busy_row.addWidget(self.dots)
+        busy_row.addWidget(self.busy, 1)
+        pad.addLayout(busy_row)
         pad.addWidget(self.bottombar)
         root.addLayout(pad)
 
@@ -489,6 +518,7 @@ class Window(QWidget):
         elif not msg:
             self.spinner.stop()
             self.busy.setText("")
+            self.dots.hide()
         self.busy_msg = msg
         if msg:
             self.spin()
@@ -496,14 +526,17 @@ class Window(QWidget):
         self.undo_btn.setEnabled(not msg and self.last is not None)
 
     def spin(self):
-        """작업 중 멘트: 별 모양이 돌고, 단계 문구가 3초마다 바뀌며 경과 시간을 보여준다."""
+        """작업 중 멘트: 파란 점 12개가 돌고, 단계 문구가 3초마다 바뀌며 경과 시간을 보여준다."""
         if not self.busy_msg:
             return
         self.busy_tick += 1
+        self.dots.step = self.busy_tick % 12
+        self.dots.show()
+        self.dots.update()
         phrases = PHRASES.get(self.busy_msg, [self.busy_msg])
         secs = int(time.monotonic() - self.busy_start)
         phrase = phrases[(secs // 3) % len(phrases)]
-        self.busy.setText(f"{SPIN[self.busy_tick % len(SPIN)]} {phrase}  ({secs}초)")
+        self.busy.setText(f"{phrase}  ({secs}초)")
 
     def on_plan(self, res, err):
         self.set_busy("")
