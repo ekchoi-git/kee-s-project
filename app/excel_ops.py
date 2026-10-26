@@ -46,7 +46,11 @@ def validate(plan, headers):
             bad.append(f"'{w['content'][:60]}'는 외부 연결·다른 파일·추가 기능이 필요한 수식이라 실행하지 않습니다.")
     if plan["new_sheet"] and not plan["writes"]:
         bad.append("새 시트에 쓸 내용이 없습니다.")
-    if plan["action"] == "change" and not (plan["filters"] or plan["sorts"] or plan["writes"] or plan["pivot"] or plan["classify"]):
+    bad += [f"'{c}' 열이 표에 없습니다." for c in plan["to_number"] if c not in headers]
+    if plan["to_number"] and not plan["edit_source"]:
+        bad.append("원본 수정 지시 없이 원본 값을 바꾸려 했습니다.")
+    if plan["action"] == "change" and not (plan["filters"] or plan["sorts"] or plan["writes"] or plan["pivot"] or plan["classify"]
+                                           or plan["to_number"]):
         bad.append("실행할 작업이 없습니다.")
     return bad
 
@@ -70,6 +74,94 @@ def errors_in(values):
                 name = ERR_NAMES.get(v - ERR_BASE, "#오류")
                 found[name] = found.get(name, 0) + 1
     return found
+
+
+def _num(v):
+    """글자로 저장된 숫자면 그 값, 아니면 None."""
+    if not isinstance(v, str):
+        return None
+    try:
+        return float(v.replace(",", ""))
+    except ValueError:
+        return None
+
+
+def rows_where(t, j, pred):
+    """표의 j번째(0부터) 열에서 조건에 맞는 칸의 (행 번호, 값) 목록."""
+    v = t.region.Columns(j + 1).Value2
+    v = v if isinstance(v, tuple) else ((v,),)
+    return [(t.region.Row + i, x) for i, (x,) in enumerate(v) if i and pred(x)]
+
+
+def spots(letter, rows, limit=5):
+    """[452..461, 480] → 'D452~D461, D480'. 묶음이 많으면 앞 몇 개만."""
+    runs = []
+    for r in rows:
+        if runs and r == runs[-1][1] + 1:
+            runs[-1][1] = r
+        else:
+            runs.append([r, r])
+    text = ", ".join(f"{letter}{a}" if a == b else f"{letter}{a}~{letter}{b}" for a, b in runs[:limit])
+    return text + (f" 외 {sum(b - a + 1 for a, b in runs[limit:])}칸" if len(runs) > limit else "")
+
+
+def blank(x):
+    return x is None or (isinstance(x, str) and not x.strip())
+
+
+def source_changes(t, plan):
+    """원본 표 안을 바꾸는 내용(확인 창에 보여줄 줄). 원본 수정 지시가 없으면 빈 목록(실행 단계에서 막힘)."""
+    if not plan["edit_source"]:
+        return []
+    lines = []
+    for c in plan["to_number"]:
+        j = t.headers.index(c)
+        hits = rows_where(t, j, lambda x: _num(x) is not None)
+        if hits:
+            lines.append(f"{c} 열 글자로 저장된 숫자 {len(hits)}칸을 숫자로 바꿈 ({spots(col_letter(t.region.Column + j), [r for r, _ in hits])})")
+    if not plan["new_sheet"]:
+        for w in plan["writes"]:
+            if ADDRESS.match(w["address"].upper()) and t.xl.Intersect(t.ws.Range(w["address"]), t.region) is not None:
+                lines.append(f"{w['address']} ← {w['content'][:60]}")
+    c = plan["classify"]
+    if c and c["output"] and _in_table(t, _col_index(c["output"])) \
+            and t.ws.Cells(t.region.Row, _col_index(c["output"])).Value2 != f"{c['column']} 분류":
+        lines.append(f"{c['output'].upper()}열을 분류 결과로 덮어씀")
+    return lines
+
+
+def _col_index(letters):
+    return sum((ord(ch) - 64) * 26 ** i for i, ch in enumerate(reversed(letters.upper())))
+
+
+def _in_table(t, c):
+    return t.region.Column <= c < t.region.Column + t.region.Columns.Count
+
+
+def assumption_notes(t, formulas, same_sheet):
+    """수식이 참조한 원본 열에 글자 숫자·빈 칸이 있으면 셀리가 어떻게 다뤘는지 건수·위치·금액으로 적는다."""
+    # shortcut: 열 참조와 '--'/VALUE 포함 여부를 글자로 판단, 수식이 복잡해져 오판이 보이면 Excel로 직접 검산
+    text = " ".join(formulas)
+    converts = bool(re.search(r"--|\bN?VALUE\(|NUMBERVALUE\(", text, re.I))
+    notes = []
+    for j, h in enumerate(t.headers):
+        letter = col_letter(t.region.Column + j)
+        ref = rf"(?<![A-Za-z_])\$?{letter}\$?\d" if same_sheet else rf"!\$?{letter}\$?\d"
+        if not re.search(ref, text):
+            continue
+        tn = rows_where(t, j, lambda x: _num(x) is not None)
+        if tn:
+            amt = f"{sum(_num(x) for _, x in tn):,.0f}"
+            where = spots(letter, [r for r, _ in tn])
+            notes.append(f"⚠ 임의 판단: {letter}열 '{h}'의 글자로 저장된 숫자 {len(tn)}칸({where})을 "
+                         + (f"숫자로 바꿔 포함 → 원본 {letter}열 SUM보다 {amt} 많음" if converts else f"제외 → 합계에서 {amt} 빠짐"))
+        bl = rows_where(t, j, blank)
+        grouped = "(빈 값)" in text and re.search(rf"\$?{letter}\$?\d+(:\$?{letter}\$?\d+)?\s*=\s*\"\"", text)
+        if bl and grouped:
+            notes.append(f"⚠ 임의 판단: {letter}열 '{h}' 빈 칸 {len(bl)}칸({spots(letter, [r for r, _ in bl])})을 '(빈 값)' 묶음으로 따로 집계")
+        elif bl:
+            notes.append(f"참고: {letter}열 '{h}' 빈 칸 {len(bl)}칸({spots(letter, [r for r, _ in bl])})")
+    return notes
 
 
 def numeric_text(values):
@@ -229,6 +321,22 @@ def _execute(t, plan, stage):
     ws, xl, done = t.ws, t.xl, []
     idx = {h: i + 1 for i, h in enumerate(t.headers)}
 
+    # 원본 수정(사용자가 지시한 경우만): 이어지는 정렬·합계가 바뀐 숫자를 쓰도록 맨 먼저
+    stage[0] = "숫자 변환"
+    for c in plan["to_number"]:
+        if not plan["edit_source"]:
+            raise PlanError("원본 수정 지시가 없어 원본 값을 바꾸지 않았습니다.")
+        j = idx[c] - 1
+        hits = rows_where(t, j, lambda x: _num(x) is not None)
+        col = t.region.Column + j
+        for r, x in hits:
+            cell = ws.Cells(r, col)
+            if cell.NumberFormat == "@":
+                cell.NumberFormat = "General"  # 텍스트 서식이면 숫자를 넣어도 다시 글자가 됨
+            cell.Value2 = _num(x)
+        done.append(f"원본 수정: '{c}' 열 글자로 저장된 숫자 {len(hits)}칸을 숫자로 바꿈"
+                    + (f" ({spots(col_letter(col), [r for r, _ in hits])})" if hits else ""))
+
     # 필터를 먼저 걸면 Excel이 보이는 행만 정렬하므로 정렬이 먼저
     stage[0] = "정렬"
     if plan["sorts"]:
@@ -245,9 +353,11 @@ def _execute(t, plan, stage):
 
     # 원본 값은 바꾸지 않고, 숫자로 취급되지 않은 칸이 있으면 알림 (PRD 5장: 사용한 가정 표시)
     for c in dict.fromkeys([s["column"] for s in plan["sorts"]] + [f["column"] for f in plan["filters"] if f["op"] in "<>=<=>="]):
-        n = numeric_text(t.region.Columns(idx[c]).Value2[1:])
-        if n:
-            done.append(f"⚠ '{c}' 열에 숫자처럼 보이지만 글자로 저장된 칸이 {n}개 있어 정렬·비교에서 숫자로 취급되지 않았습니다. 숫자로 바꾸려면 말씀해주세요.")
+        hits = rows_where(t, idx[c] - 1, lambda x: _num(x) is not None)
+        if hits:
+            where = spots(col_letter(t.region.Column + idx[c] - 1), [r for r, _ in hits])
+            done.append(f"⚠ 임의 판단: '{c}' 열의 글자로 저장된 숫자 {len(hits)}칸({where})은 정렬·비교에서 숫자로 취급되지 않았습니다. "
+                        "원본을 숫자로 바꾸려면 '원본 숫자로 바꿔줘'라고 말씀해주세요.")
 
     stage[0] = "필터"
     for f in plan["filters"]:
@@ -262,9 +372,12 @@ def _execute(t, plan, stage):
     if plan["writes"]:
         out_ws = new_sheet(t, plan["new_sheet"]) if plan["new_sheet"] else ws
         ranges = [out_ws.Range(w["address"]) for w in plan["writes"]]
-        if not plan["overwrite"] and out_ws is ws:
+        if out_ws is ws:
             for w, r in zip(plan["writes"], ranges):
-                if xl.WorksheetFunction.CountA(r) or xl.Intersect(r, t.region) is not None:
+                if xl.Intersect(r, t.region) is not None:
+                    if not plan["edit_source"]:  # 원본 표 안은 사용자가 원본 수정을 지시했을 때만
+                        raise PlanError(f"{w['address']}는 원본 표 안이라 쓰지 않았습니다. 원본을 고치려면 '원본을 수정해줘'라고 말씀해주세요.")
+                elif not plan["overwrite"] and xl.WorksheetFunction.CountA(r):
                     raise PlanError(f"{w['address']}에 이미 데이터가 있어 덮어쓰지 않았습니다. 덮어쓰려면 그렇게 말씀해주세요.")
         dyn = dynamic_arrays(ws)
         for w, r in zip(plan["writes"], ranges):
@@ -299,6 +412,10 @@ def _execute(t, plan, stage):
             done.append(f"… 외 {len(plan['writes']) - 12}곳")
         if errs:
             done.append("⚠ 일부 칸 오류(데이터 때문일 수 있음): " + ", ".join(f"{k} {v}칸" for k, v in errs.items()))
+        if plan["edit_source"]:
+            done += [f"원본 수정: {w['address']} ← {w['content'][:60]}" for w, r in zip(plan["writes"], ranges)
+                     if out_ws is ws and xl.Intersect(r, t.region) is not None]
+        done += assumption_notes(t, [w["content"] for w in plan["writes"] if w["content"].startswith("=")], out_ws is ws)
 
     stage[0] = "피벗"
     if plan["pivot"]:
@@ -392,7 +509,7 @@ def column_values(t, column):
     return [r[0] for r in v[1:]]
 
 
-def write_classification(t, column, rows, overwrite, output=""):
+def write_classification(t, column, rows, overwrite, output="", edit_source=False):
     """분류 결과를 표 바로 오른쪽 두 열(분류, 분류 이유)에 쓴다. 표에 붙여야 정렬할 때 행과 함께 움직인다.
     output(열 글자)을 주면 그 한 열에만 범주를 쓴다. 같은 이름의 열이 이미 있으면(다시 분류) 그 열을 갱신한다.
     돌려주는 값: 기록한 위치 설명."""
@@ -400,10 +517,14 @@ def write_classification(t, column, rows, overwrite, output=""):
     names = [f"{column} 분류", f"{column} 분류 이유"]
     ws, n = t.ws, len(rows)
     if output:
-        c = sum((ord(ch) - 64) * 26 ** i for i, ch in enumerate(reversed(output.upper())))
+        c = _col_index(output)
         names, cols = names[:1], [c]
         block = ws.Range(ws.Cells(t.region.Row, c), ws.Cells(t.region.Row + n, c))
-        if not overwrite and t.xl.WorksheetFunction.CountA(block):
+        own = ws.Cells(t.region.Row, c).Value2 == names[0]  # 셀리가 전에 만든 분류 열이면 다시 분류해 갱신
+        if _in_table(t, c) and not (edit_source or own):
+            raise PlanError(f"{col_letter(c)}열은 원본 표 안이라 분류 결과를 쓰지 않았습니다. "
+                            "빈 열을 지정하거나, 원본을 수정해도 된다고 말씀해주세요.")
+        if not (overwrite or edit_source or own) and t.xl.WorksheetFunction.CountA(block):
             raise PlanError(f"{col_letter(c)}열에 이미 내용이 있어 분류 결과를 쓰지 않았습니다. "
                             "비어 있는 열을 지정하거나, 덮어써도 된다고 말씀해주세요.")
         ws.Cells(t.region.Row, c).Value2 = names[0]

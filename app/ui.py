@@ -7,12 +7,12 @@ from PySide6.QtCore import QByteArray, QObject, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QScrollArea, QVBoxLayout, QWidget)
+                               QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from . import ai, classify
 from .excel_conn import ExcelError, active_sheet, list_files, read_summary
-from .excel_ops import (FormulaError, PlanError, Target, Undo, column_values, execute, fingerprint, validate,
-                        write_classification)
+from .excel_ops import (FormulaError, PlanError, Target, Undo, column_values, execute, fingerprint,
+                        source_changes, validate, write_classification)
 
 
 ARROW_UP = '<path d="M12 5l0 14"/><path d="M18 11l-6 -6"/><path d="M6 11l6 -6"/>'
@@ -554,6 +554,13 @@ class Window(QWidget):
         """대상 재확인 → 되돌리기 사본 → 즉시 실행. 실패하면 원래대로 되돌리고 PlanError."""
         if fingerprint(t.ws) != before:
             raise PlanError("AI가 해석하는 동안 시트 내용이 바뀌어 실행하지 않았습니다. 다시 요청해주세요.")
+        changes = source_changes(t, plan)
+        if changes:  # 원본 수정은 지시가 있어도 실행 전에 한 번 더 확인
+            ok = QMessageBox.question(self, "원본 수정 확인", "원본 표를 다음과 같이 바꿉니다. 진행할까요?\n\n"
+                                      + "\n".join("• " + c for c in changes[:15])
+                                      + (f"\n… 외 {len(changes) - 15}곳" if len(changes) > 15 else ""))
+            if ok != QMessageBox.Yes:
+                raise PlanError("원본 수정을 취소했습니다. Excel은 바꾸지 않았습니다.")
         self.set_busy("Excel에 적용하는 중…")
         QApplication.processEvents()
         u = Undo(t)
@@ -565,7 +572,8 @@ class Window(QWidget):
             done = []
             if cls:
                 res, values = cls
-                loc = write_classification(t, plan["classify"]["column"], res["rows"], plan["overwrite"], plan["classify"]["output"])
+                loc = write_classification(t, plan["classify"]["column"], res["rows"], plan["overwrite"],
+                                           plan["classify"]["output"], plan["edit_source"])
                 done += classify.report(res, values, loc)
                 t = Target(t.ws)  # 분류 열이 붙은 표로 다시 읽어야 이어지는 정렬·필터가 그 열을 포함
             done += execute(t, plan)
