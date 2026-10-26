@@ -44,6 +44,8 @@ def validate(plan, headers):
             bad.append(f"'{w['address']}'는 이 시트의 셀 주소가 아닙니다.")
         if BLOCKED_FN.search(w["content"]) or EXTERNAL.search(w["content"]):
             bad.append(f"'{w['content'][:60]}'는 외부 연결·다른 파일·추가 기능이 필요한 수식이라 실행하지 않습니다.")
+    if plan["new_sheet"] and not plan["writes"]:
+        bad.append("새 시트에 쓸 내용이 없습니다.")
     if plan["action"] == "change" and not (plan["filters"] or plan["sorts"] or plan["writes"] or plan["pivot"] or plan["classify"]):
         bad.append("실행할 작업이 없습니다.")
     return bad
@@ -233,8 +235,9 @@ def _execute(t, plan, stage):
 
     stage[0] = "셀 입력"
     if plan["writes"]:
-        ranges = [ws.Range(w["address"]) for w in plan["writes"]]
-        if not plan["overwrite"]:
+        out_ws = new_sheet(t, plan["new_sheet"]) if plan["new_sheet"] else ws
+        ranges = [out_ws.Range(w["address"]) for w in plan["writes"]]
+        if not plan["overwrite"] and out_ws is ws:
             for w, r in zip(plan["writes"], ranges):
                 if xl.WorksheetFunction.CountA(r) or xl.Intersect(r, t.region) is not None:
                     raise PlanError(f"{w['address']}에 이미 데이터가 있어 덮어쓰지 않았습니다. 덮어쓰려면 그렇게 말씀해주세요.")
@@ -261,6 +264,10 @@ def _execute(t, plan, stage):
             detail = ", ".join(f"{k} {v}칸" for k, v in errs.items())
             raise FormulaError(f"수식이 오류를 냈습니다({detail}). 결과 칸이 모두 오류이거나 지원하지 않는 함수, "
                                "결과가 들어갈 자리가 막혀 있을 수 있습니다." + "".join(f"\n  {b}" for b in broken))
+        if out_ws is not ws:
+            out_ws.Columns.AutoFit()
+            ws.Activate()
+            done.append(f"새 시트 '{out_ws.Name}'에 작성")
         for w in plan["writes"][:12]:
             done.append(f"입력: {w['address']}  {w['content']}")
         if len(plan["writes"]) > 12:
@@ -285,6 +292,16 @@ def _execute(t, plan, stage):
         ws.Activate()
         done.append(f"피벗: 새 시트 '{name}' (행 {', '.join(p['rows']) or '-'} / 열 {', '.join(p['columns']) or '-'})")
     return done
+
+
+def new_sheet(t, name):
+    """작업 시트 바로 뒤에 새 시트를 만든다. 이름은 Excel 규칙(31자, []:*?/\\ 금지)에 맞추고 겹치면 (2)…를 붙인다."""
+    base = re.sub(r"[\[\]:*?/\\']", "", name).strip()[:28] or "AI 결과"
+    names = {s.Name for s in t.wb.Worksheets}
+    name = next(n for n in [base] + [f"{base}({i})" for i in range(2, 1000)] if n not in names)
+    new = t.wb.Worksheets.Add(After=t.ws)
+    new.Name = name
+    return new
 
 
 class Undo:
