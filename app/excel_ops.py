@@ -93,6 +93,15 @@ def rows_where(t, j, pred):
     return [(t.region.Row + i, x) for i, (x,) in enumerate(v) if i and pred(x)]
 
 
+def text_numbers(t, j):
+    """진짜 숫자 사이에 섞인 '글자로 저장된 숫자' 칸. 열 전체가 글자(공급사번호 같은 ID)면 실수가 아니므로 빈 목록."""
+    v = t.region.Columns(j + 1).Value2
+    v = v if isinstance(v, tuple) else ((v,),)
+    if not any(isinstance(x, (int, float)) and not isinstance(x, bool) for (x,) in v[1:]):
+        return []
+    return [(t.region.Row + i, x) for i, (x,) in enumerate(v) if i and _num(x) is not None]
+
+
 def spots(letter, rows, limit=5):
     """[452..461, 480] → 'D452~D461, D480'. 묶음이 많으면 앞 몇 개만."""
     runs = []
@@ -155,7 +164,7 @@ def suggest_to_number(t, plan):
     js |= {t.headers.index(f["column"]) for f in plan["filters"] if f["op"] in "<>=<=>="}
     out = []
     for j in sorted(js):
-        tn = rows_where(t, j, lambda x: _num(x) is not None)
+        tn = text_numbers(t, j)
         if tn:
             out.append((t.headers[j], spots(col_letter(t.region.Column + j), [r for r, _ in tn]), len(tn)))
     return out
@@ -171,7 +180,7 @@ def assumption_notes(t, formulas, same_sheet):
         letter = col_letter(t.region.Column + j)
         if not re.search(_ref(letter, same_sheet), text):
             continue
-        tn = rows_where(t, j, lambda x: _num(x) is not None)
+        tn = text_numbers(t, j)
         if tn:
             amt = f"{sum(_num(x) for _, x in tn):,.0f}"
             where = spots(letter, [r for r, _ in tn])
@@ -194,7 +203,7 @@ def pivot_notes(t, p):
             continue
         j = t.headers.index(v["field"])
         letter = col_letter(t.region.Column + j)
-        tn = rows_where(t, j, lambda x: _num(x) is not None)
+        tn = text_numbers(t, j)
         if tn:
             notes.append(f"⚠ 임의 판단: {letter}열 '{v['field']}'의 글자로 저장된 숫자 {len(tn)}칸({spots(letter, [r for r, _ in tn])})은 "
                          f"피벗 합계에서 빠짐 → 원본 값 기준 {sum(_num(x) for _, x in tn):,.0f} 적음")
@@ -437,7 +446,7 @@ def _execute(t, plan, stage):
 
     # 원본 값은 바꾸지 않고, 숫자로 취급되지 않은 칸이 있으면 알림 (PRD 5장: 사용한 가정 표시)
     for c in dict.fromkeys([s["column"] for s in plan["sorts"]] + [f["column"] for f in plan["filters"] if f["op"] in "<>=<=>="]):
-        hits = rows_where(t, idx[c] - 1, lambda x: _num(x) is not None)
+        hits = text_numbers(t, idx[c] - 1)
         if hits:
             where = spots(col_letter(t.region.Column + idx[c] - 1), [r for r, _ in hits])
             done.append(f"⚠ 임의 판단: '{c}' 열의 글자로 저장된 숫자 {len(hits)}칸({where})은 정렬·비교에서 숫자로 취급되지 않았습니다.")
@@ -468,6 +477,12 @@ def _execute(t, plan, stage):
                 r.Formula2 = w["content"]
             elif w["content"].startswith("="):
                 r.Formula = w["content"]  # 동적 배열이 없는 Excel
+            elif "\t" in w["content"] or "\n" in w["content"]:
+                # 머리글처럼 탭·줄바꿈으로 이어 붙인 글자는 칸마다 나눠 씀(범위 전체에 같은 글자가 들어가지 않게)
+                grid = [line.split("\t") for line in w["content"].split("\n")]
+                width = max(len(g) for g in grid)
+                grid = tuple(tuple(g + [""] * (width - len(g))) for g in grid)
+                out_ws.Range(r.Cells(1, 1), r.Cells(len(grid), width)).Value2 = grid
             else:
                 r.Value2 = w["content"]
         xl.Calculate()

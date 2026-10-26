@@ -340,6 +340,10 @@ class Window(QWidget):
             btn = QPushButton("[제안] " + action[0])
             btn.setObjectName("suggest")
             btn.setCursor(Qt.PointingHandCursor)
+            btn.setProperty("full", btn.text())
+            btn.setMinimumWidth(80)  # 글이 길어도 말풍선보다 넓어지지 않게(넘치면 fit_bubbles가 … 로 줄임)
+            if len(action) > 2:
+                btn.setToolTip(action[2])
             btn.clicked.connect(lambda: (btn.setEnabled(False), action[1]()))
             box.addWidget(btn, 0, Qt.AlignLeft)
             self.suggest_btn = btn
@@ -359,6 +363,12 @@ class Window(QWidget):
             maxw = max(200, int((self.width() - 60) * (0.85 if kind == "me" else 1)))
             label.setMaximumWidth(maxw)
             label.setMinimumWidth(min(maxw, longest + 48))
+            btn = label.findChild(QPushButton, "suggest")
+            if btn:
+                full = btn.property("full")
+                room = maxw - 24 - 30  # 말풍선 안쪽 여백과 버튼 안쪽 여백
+                btn.setText(btn.fontMetrics().elidedText(full, Qt.ElideRight, room))
+                btn.setMaximumWidth(maxw - 24)
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
@@ -557,8 +567,10 @@ class Window(QWidget):
             action = None
             if self.suggestion:  # 2차: 원본의 글자 숫자를 숫자로 바꾸자는 제안 (1차 결과는 원본 그대로 계산됨)
                 ws, cols = self.suggestion
-                where = ", ".join(f"{s} {n}칸" for _, s, n in cols)
-                action = (f"원본 {where}을 숫자로 바꾸고 다시 계산", lambda: self.convert(ws, [c for c, _, _ in cols]))
+                n = sum(k for _, _, k in cols)
+                where = ", ".join(f"{s} {k}칸" for _, s, k in cols)
+                action = (f"원본 글자 숫자 {n}칸을 숫자로 바꾸고 다시 계산", lambda: self.convert(ws, [c for c, _, _ in cols]),
+                          f"바꿀 칸: {where}")
             self.say(text + tail, action=action)
         except FormulaError as e:
             if retry:
