@@ -1,5 +1,7 @@
 """Excel 쪽: 대상 표 읽기, AI 계획 검사, 실행, 직전 작업 되돌리기."""
-import hashlib, re
+import hashlib, re, time
+
+import pywintypes
 
 BACKUP = "_ai_undo"
 
@@ -136,6 +138,29 @@ def _in_table(t, c):
     return t.region.Column <= c < t.region.Column + t.region.Columns.Count
 
 
+def _ref(letter, same_sheet):
+    """수식이 원본의 그 열을 참조하는지 찾는 패턴. 새 시트 수식은 '시트명'! 뒤의 참조만 원본이다."""
+    return rf"(?<![A-Za-z_])\$?{letter}\$?\d" if same_sheet else rf"!\$?{letter}\$?\d"
+
+
+def suggest_to_number(t, plan):
+    """1차 결과가 쓴 원본 열 중 글자로 저장된 숫자가 있는 열: [(머리글, 칸 위치, 칸 수)]. 제안 버튼에 쓴다."""
+    if plan["edit_source"]:
+        return []
+    text = " ".join(w["content"] for w in plan["writes"] if w["content"].startswith("="))
+    js = {j for j in range(len(t.headers)) if re.search(_ref(col_letter(t.region.Column + j), not plan["new_sheet"]), text)}
+    if plan["pivot"]:
+        js |= {t.headers.index(v["field"]) for v in plan["pivot"]["values"] if v["func"] != "count"}
+    js |= {t.headers.index(s["column"]) for s in plan["sorts"]}
+    js |= {t.headers.index(f["column"]) for f in plan["filters"] if f["op"] in "<>=<=>="}
+    out = []
+    for j in sorted(js):
+        tn = rows_where(t, j, lambda x: _num(x) is not None)
+        if tn:
+            out.append((t.headers[j], spots(col_letter(t.region.Column + j), [r for r, _ in tn]), len(tn)))
+    return out
+
+
 def assumption_notes(t, formulas, same_sheet):
     """수식이 참조한 원본 열에 글자 숫자·빈 칸이 있으면 셀리가 어떻게 다뤘는지 건수·위치·금액으로 적는다."""
     # shortcut: 열 참조와 '--'/VALUE 포함 여부를 글자로 판단, 수식이 복잡해져 오판이 보이면 Excel로 직접 검산
@@ -144,8 +169,7 @@ def assumption_notes(t, formulas, same_sheet):
     notes = []
     for j, h in enumerate(t.headers):
         letter = col_letter(t.region.Column + j)
-        ref = rf"(?<![A-Za-z_])\$?{letter}\$?\d" if same_sheet else rf"!\$?{letter}\$?\d"
-        if not re.search(ref, text):
+        if not re.search(_ref(letter, same_sheet), text):
             continue
         tn = rows_where(t, j, lambda x: _num(x) is not None)
         if tn:
@@ -173,8 +197,7 @@ def pivot_notes(t, p):
         tn = rows_where(t, j, lambda x: _num(x) is not None)
         if tn:
             notes.append(f"⚠ 임의 판단: {letter}열 '{v['field']}'의 글자로 저장된 숫자 {len(tn)}칸({spots(letter, [r for r, _ in tn])})은 "
-                         f"피벗 합계에서 빠짐 → 원본 값 기준 {sum(_num(x) for _, x in tn):,.0f} 적음. "
-                         "포함하려면 '원본 숫자로 바꿔줘'라고 말씀해주세요.")
+                         f"피벗 합계에서 빠짐 → 원본 값 기준 {sum(_num(x) for _, x in tn):,.0f} 적음")
     for c in p["rows"] + p["columns"]:
         j = t.headers.index(c)
         letter = col_letter(t.region.Column + j)
@@ -319,6 +342,18 @@ def dynamic_arrays(ws):
 
 
 def fingerprint(ws):
+    # 재계산·피벗 새로고침 직후 Excel이 바쁘면 COM 호출을 잠깐 거부한다(RPC_E_CALL_REJECTED): 몇 번 기다렸다 다시
+    for _ in range(40):
+        try:
+            return _fingerprint(ws)
+        except pywintypes.com_error as e:
+            if e.hresult != -2147418111:
+                raise
+            time.sleep(0.25)
+    return _fingerprint(ws)
+
+
+def _fingerprint(ws):
     r = ws.UsedRange
     filt = ws.AutoFilterMode, [lo.AutoFilter.FilterMode if lo.AutoFilter else None for lo in ws.ListObjects]
     raw = repr((r.Address, r.Formula2, r.Value2, filt, ws.PivotTables().Count, [s.Name for s in ws.Parent.Worksheets]))
@@ -355,7 +390,13 @@ def _execute(t, plan, stage):
                 cell.NumberFormat = "General"  # 텍스트 서식이면 숫자를 넣어도 다시 글자가 됨
             cell.Value2 = _num(x)
         done.append(f"원본 수정: '{c}' 열 글자로 저장된 숫자 {len(hits)}칸을 숫자로 바꿈"
-                    + (f" ({spots(col_letter(col), [r for r, _ in hits])})" if hits else ""))
+                    + (f" ({spots(col_letter(col), [r for r, _ in hits])}, {sum(_num(x) for _, x in hits):,.0f})" if hits else ""))
+    if plan["to_number"]:
+        # 이 숫자를 쓰는 수식은 Excel이 다시 계산하지만 피벗은 새로고침해야 바뀐 값이 들어감
+        pts = [pt for s in t.wb.Worksheets for pt in s.PivotTables()]
+        for pt in pts:
+            pt.PivotCache().Refresh()
+        done.append("→ 이 값을 쓰는 수식은 다시 계산" + (f", 피벗 {len(pts)}개 새로고침" if pts else ""))
 
     # 필터를 먼저 걸면 Excel이 보이는 행만 정렬하므로 정렬이 먼저
     stage[0] = "정렬"
@@ -376,8 +417,7 @@ def _execute(t, plan, stage):
         hits = rows_where(t, idx[c] - 1, lambda x: _num(x) is not None)
         if hits:
             where = spots(col_letter(t.region.Column + idx[c] - 1), [r for r, _ in hits])
-            done.append(f"⚠ 임의 판단: '{c}' 열의 글자로 저장된 숫자 {len(hits)}칸({where})은 정렬·비교에서 숫자로 취급되지 않았습니다. "
-                        "원본을 숫자로 바꾸려면 '원본 숫자로 바꿔줘'라고 말씀해주세요.")
+            done.append(f"⚠ 임의 판단: '{c}' 열의 글자로 저장된 숫자 {len(hits)}칸({where})은 정렬·비교에서 숫자로 취급되지 않았습니다.")
 
     stage[0] = "필터"
     for f in plan["filters"]:

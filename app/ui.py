@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLa
 from . import ai, classify
 from .excel_conn import ExcelError, active_sheet, list_files, read_summary
 from .excel_ops import (FormulaError, PlanError, Target, Undo, column_values, execute, fingerprint,
-                        source_changes, validate, write_classification)
+                        source_changes, suggest_to_number, validate, write_classification)
 
 
 ARROW_UP = '<path d="M12 5l0 14"/><path d="M18 11l-6 -6"/><path d="M6 11l6 -6"/>'
@@ -127,6 +127,9 @@ QPushButton:hover { background: #f3f4f6; }
 #apikey { background: #2f3ce8; color: white; border: none; border-radius: 14px; padding: 6px 18px;
           font-weight: bold; letter-spacing: 1px; }
 #apikey:hover { background: #2531c4; }
+#suggest { background: #1f1f1d; color: white; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; }
+#suggest:hover { background: #3a3a37; }
+#suggest:disabled { background: #e8e6df; color: #888780; }
 """
 
 
@@ -149,6 +152,8 @@ class Window(QWidget):
         self.resize(420, 760)
         self.files = []
         self.bubbles = []       # (말풍선, 종류, 가장 긴 줄 폭): 창 크기에 맞춰 폭을 다시 잡는다
+        self.suggestion = None  # (시트, [(열, 칸 위치, 칸 수)]): 직전 결과에 붙일 원본 숫자 변환 제안
+        self.suggest_btn = None
         self.sheet = None       # 지금 작업 대상 시트 개체
         self.sheet_key = None   # (파일, 시트 이름): 바뀌었을 때만 다시 읽기 위함
 
@@ -311,7 +316,8 @@ class Window(QWidget):
                 out.append(f'<p style="margin:0 0 3px 0">{body or "&nbsp;"}</p>')
         return "".join(out)
 
-    def say(self, text, kind="bot"):
+    def say(self, text, kind="bot", action=None):
+        """action=(버튼 글, 누르면 할 일): 말풍선 아래 제안 버튼. 누르는 것 자체가 사용자 동의."""
         self.empty.hide()  # 대화가 시작되면 예시 버튼은 숨김
         label = QLabel(self._rich(text))
         label.setTextFormat(Qt.RichText)
@@ -326,6 +332,16 @@ class Window(QWidget):
             row.addStretch(1)
         row.addWidget(label, 0 if kind == "me" else 1)  # 답변 말풍선은 최대 폭까지 늘어남
         self.chat.addLayout(row)
+        if action:
+            btn = QPushButton(action[0])
+            btn.setObjectName("suggest")
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.clicked.connect(lambda: (btn.setEnabled(False), action[1]()))
+            brow = QHBoxLayout()
+            brow.addWidget(btn)
+            brow.addStretch(1)
+            self.chat.addLayout(brow)
+            self.suggest_btn = btn
         QTimer.singleShot(0, lambda: self.scroll.verticalScrollBar().setValue(self.scroll.verticalScrollBar().maximum()))
 
     def fit_bubbles(self):
@@ -528,7 +544,13 @@ class Window(QWidget):
     def finish(self, plan, t, before, cls, tail, retry=True):
         fix = None
         try:
-            self.say(self.apply(plan, t, before, cls) + tail)
+            text = self.apply(plan, t, before, cls)
+            action = None
+            if self.suggestion:  # 2차: 원본의 글자 숫자를 숫자로 바꾸자는 제안 (1차 결과는 원본 그대로 계산됨)
+                ws, cols = self.suggestion
+                where = ", ".join(f"{s} {n}칸" for _, s, n in cols)
+                action = (f"원본 {where}을 숫자로 바꾸고 다시 계산", lambda: self.convert(ws, [c for c, _, _ in cols]))
+            self.say(text + tail, action=action)
         except FormulaError as e:
             if retry:
                 self.say(str(e), "err")
@@ -554,8 +576,9 @@ class Window(QWidget):
         """대상 재확인 → 되돌리기 사본 → 즉시 실행. 실패하면 원래대로 되돌리고 PlanError."""
         if fingerprint(t.ws) != before:
             raise PlanError("AI가 해석하는 동안 시트 내용이 바뀌어 실행하지 않았습니다. 다시 요청해주세요.")
-        changes = source_changes(t, plan)
-        if changes:  # 원본 수정은 지시가 있어도 실행 전에 한 번 더 확인
+        self.drop_suggestion()  # 다른 작업을 하면 이전 제안은 더 이상 그 결과에 맞지 않음
+        changes = [] if plan.get("confirmed") else source_changes(t, plan)
+        if changes:  # 원본 수정은 지시가 있어도 실행 전에 한 번 더 확인 (제안 버튼은 누른 것이 확인)
             ok = QMessageBox.question(self, "원본 수정 확인", "원본 표를 다음과 같이 바꿉니다. 진행할까요?\n\n"
                                       + "\n".join("• " + c for c in changes[:15])
                                       + (f"\n… 외 {len(changes) - 15}곳" if len(changes) > 15 else ""))
@@ -570,6 +593,7 @@ class Window(QWidget):
         t.xl.ScreenUpdating = False
         try:
             done = []
+            sugg = suggest_to_number(t, plan)
             if cls:
                 res, values = cls
                 loc = write_classification(t, plan["classify"]["column"], res["rows"], plan["overwrite"],
@@ -589,13 +613,34 @@ class Window(QWidget):
             t.xl.ScreenUpdating = True
         u.after()
         self.last = u
+        self.suggestion = (t.ws, sugg) if sugg else None
         steps = "\n".join("• " + d for d in done)
         head = "⚠ 일부만 분류됨" if cls and cls[0]["failed"] else "✔ 적용 완료"  # 일부 실패를 전체 성공으로 표시하지 않음
         return f"{head}\n{plan['summary']}\n\n대상: {t.wb.Name} › {t.ws.Name}\n{steps}"
 
+    def drop_suggestion(self):
+        self.suggestion = None
+        if self.suggest_btn:
+            self.suggest_btn.setEnabled(False)
+            self.suggest_btn = None
+
+    def convert(self, ws, columns):
+        """제안 버튼: 원본의 글자 숫자를 숫자로 바꾼다. 1차 결과의 수식은 다시 계산되고 피벗은 새로고침된다."""
+        plan = dict(action="change", question=None, overwrite=False, edit_source=True, to_number=columns, filters=[],
+                    sorts=[], writes=[], pivot=None, classify=None, new_sheet="", confirmed=True,
+                    summary="제안에 따라 원본의 글자로 저장된 숫자를 숫자로 바꿨습니다. 앞 결과가 바뀐 값 기준으로 다시 계산되었습니다.")
+        try:
+            t = Target(ws)
+            before = fingerprint(ws)
+        except Exception as e:
+            self.say(f"시트를 다시 읽지 못했습니다: {e}", "err")
+            return
+        self.finish(plan, t, before, None, "")
+
     def undo(self):
         if not self.last:
             return
+        self.drop_suggestion()
         try:
             self.last.undo()
         except PlanError as e:
