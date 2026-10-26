@@ -99,8 +99,13 @@ class Target:
     def __init__(self, ws):
         self.ws, self.wb, self.xl = ws, ws.Parent, ws.Application
         self.lo = self.ws.ListObjects(1) if self.ws.ListObjects.Count else None
-        # shortcut: 시트의 첫 표(없으면 A1에서 이어진 범위)만 대상으로 봄, 여러 표 지원 시 선택 범위로 확장
-        self.region = self.lo.Range if self.lo else self.ws.Range("A1").CurrentRegion
+        # shortcut: 시트의 첫 표(없으면 첫 피벗, 그것도 없으면 위에서부터 처음 만나는 2행 이상 범위)만 대상으로 봄, 여러 표 지원 시 선택 범위로 확장
+        if self.lo:
+            self.region = self.lo.Range
+        elif self.ws.PivotTables().Count:
+            self.region = self.ws.PivotTables(1).TableRange1
+        else:
+            self.region = first_block(self.ws)
         row1 = self.region.Rows(1).Value2
         self.headers = [str(h) if h is not None else "" for h in (row1[0] if isinstance(row1, tuple) else (row1,))]
 
@@ -112,7 +117,7 @@ class Target:
         if self.region.MergeCells is not False:
             raise PlanError("병합된 셀이 있는 표는 지원하지 않습니다.")
         if self.region.Rows.Count < 2 or not any(self.headers):
-            raise PlanError("A1부터 시작하는 머리글 있는 표를 찾지 못했습니다.")
+            raise PlanError("머리글 있는 표를 찾지 못했습니다. 머리글 한 줄과 데이터가 붙어 있는 표가 필요합니다.")
 
     def info(self):
         r = self.region
@@ -170,6 +175,26 @@ class Target:
                 if len(lines) >= limit:
                     return ["표 오른쪽에 이미 있는 내용(일부):", *lines]
         return ["표 오른쪽에 이미 있는 내용:", *lines] if lines else []
+
+
+def first_block(ws):
+    """위에서부터 훑어 처음 만나는 2행 이상 이어진 범위. 맨 위 제목 한 줄은 건너뛴다. 없으면 A1의 범위."""
+    used = ws.UsedRange
+    v = used.Value2
+    v = v if isinstance(v, tuple) else ((v,),)
+    seen = []
+    for i, row in enumerate(v):
+        for j, x in enumerate(row):
+            if x is None or x == "":
+                continue
+            r, c = used.Row + i, used.Column + j
+            if any(r0 <= r < r1 and c0 <= c < c1 for r0, r1, c0, c1 in seen):
+                continue
+            block = ws.Cells(r, c).CurrentRegion
+            if block.Rows.Count >= 2:
+                return block
+            seen.append((block.Row, block.Row + block.Rows.Count, block.Column, block.Column + block.Columns.Count))
+    return ws.Range("A1").CurrentRegion
 
 
 def dynamic_arrays(ws):
