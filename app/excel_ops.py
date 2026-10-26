@@ -228,11 +228,19 @@ def col_letter(n):
     return s
 
 
+TOTAL_LABELS = {"합계", "총합계"}
+
+
 class Target:
     """요청 시점에 고정한 통합 문서·시트와 그 안의 데이터 표."""
 
     def __init__(self, ws):
-        self.ws, self.wb, self.xl = ws, ws.Parent, ws.Application
+        self.ws = ws
+        retry_busy(self._load)
+
+    def _load(self):
+        ws = self.ws
+        self.wb, self.xl = ws.Parent, ws.Application
         self.lo = self.ws.ListObjects(1) if self.ws.ListObjects.Count else None
         # shortcut: 시트의 첫 표(없으면 첫 피벗, 그것도 없으면 위에서부터 처음 만나는 2행 이상 범위)만 대상으로 봄, 여러 표 지원 시 선택 범위로 확장
         if self.lo:
@@ -241,6 +249,13 @@ class Target:
             self.region = self.ws.PivotTables(1).TableRange1
         else:
             self.region = first_block(self.ws)
+        # 표 바로 아래 붙은 합계 줄(피벗 '총합계' 포함)은 데이터가 아님: 넣으면 다음 합계에서 두 번 더해지고 정렬에 섞인다
+        r = self.region
+        last = r.Cells(r.Rows.Count, 1).Value2
+        self.total_row = None
+        if r.Rows.Count > 2 and isinstance(last, str) and last.replace(" ", "") in TOTAL_LABELS:
+            self.total_row = r.Row + r.Rows.Count - 1
+            self.region = ws.Range(r.Cells(1, 1), r.Cells(r.Rows.Count - 1, r.Columns.Count))  # pywin32의 Resize(n)은 n번째 칸이 됨
         row1 = self.region.Rows(1).Value2
         self.headers = [str(h) if h is not None else "" for h in (row1[0] if isinstance(row1, tuple) else (row1,))]
 
@@ -265,6 +280,7 @@ class Target:
         return "\n".join([
             f"통합 문서: {self.wb.Name} / 시트: {self.ws.Name}",
             f"데이터 범위: {r.Address} (머리글 {first}행, 데이터 {first + 1}~{last}행, {last - first}행)",
+            *([f"합계 줄: {self.total_row}행 (표 바로 아래 붙은 합계라 데이터 범위에 넣지 않음)"] if self.total_row else []),
             "열: " + ", ".join(cols),
             f"결과 시작 열: {free} (그 왼쪽은 사용 중)",
             f"Excel 버전 {self.xl.Version}, 동적 배열 함수 {'지원함' if dynamic_arrays(self.ws) else '지원 안 함'}",
@@ -341,16 +357,23 @@ def dynamic_arrays(ws):
         return False
 
 
-def fingerprint(ws):
-    # 재계산·피벗 새로고침 직후 Excel이 바쁘면 COM 호출을 잠깐 거부한다(RPC_E_CALL_REJECTED): 몇 번 기다렸다 다시
+BUSY = -2147418111  # RPC_E_CALL_REJECTED: 재계산·피벗 새로고침 직후 Excel이 바빠 COM 호출을 잠깐 거부함
+
+
+def retry_busy(fn, *args):
+    """읽기처럼 다시 해도 되는 호출만: Excel이 바빠 거부하면 0.25초씩 최대 약 10초 기다렸다 다시."""
     for _ in range(40):
         try:
-            return _fingerprint(ws)
+            return fn(*args)
         except pywintypes.com_error as e:
-            if e.hresult != -2147418111:
+            if e.hresult != BUSY:
                 raise
             time.sleep(0.25)
-    return _fingerprint(ws)
+    return fn(*args)
+
+
+def fingerprint(ws):
+    return retry_busy(_fingerprint, ws)
 
 
 def _fingerprint(ws):
@@ -466,6 +489,15 @@ def _execute(t, plan, stage):
             out_ws.Columns.AutoFit()
             ws.Activate()
             done.append(f"새 시트 '{out_ws.Name}'에 작성")
+        else:  # 결과가 열 폭보다 길면 5.24E+10·#### 로 보이므로 넓히기만 함(원래 더 넓으면 그대로)
+            for r in ranges:
+                out = r.SpillingToRange if r.Count == 1 and dyn and r.HasSpill else r
+                for k in range(1, out.Columns.Count + 1):
+                    col = out.Columns(k)
+                    old = col.ColumnWidth
+                    col.AutoFit()
+                    if col.ColumnWidth < old:
+                        col.ColumnWidth = old
         if errs:
             done.append("⚠ 일부 칸 오류(데이터 때문일 수 있음): " + ", ".join(f"{k} {v}칸" for k, v in errs.items()))
         if plan["edit_source"]:
