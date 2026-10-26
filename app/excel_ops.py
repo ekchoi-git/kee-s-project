@@ -36,6 +36,8 @@ def validate(plan, headers):
             bad.append("피벗에 집계할 값이 없습니다.")
     if plan["classify"]:
         cols.append(plan["classify"]["column"])
+        if not re.fullmatch(r"[A-Za-z]{0,3}", plan["classify"]["output"]):
+            bad.append(f"'{plan['classify']['output']}'는 결과를 넣을 열 글자가 아닙니다.")
     bad += [f"'{c}' 열이 표에 없습니다." for c in dict.fromkeys(cols) if c not in headers]
     for w in plan["writes"]:
         if not ADDRESS.match(w["address"].upper()):
@@ -348,12 +350,28 @@ def column_values(t, column):
     return [r[0] for r in v[1:]]
 
 
-def write_classification(t, column, rows, overwrite):
+def write_classification(t, column, rows, overwrite, output=""):
     """분류 결과를 표 바로 오른쪽 두 열(분류, 분류 이유)에 쓴다. 표에 붙여야 정렬할 때 행과 함께 움직인다.
-    같은 이름의 열이 이미 있으면(다시 분류) 그 열을 갱신한다. 돌려주는 값: 기록한 위치 설명."""
+    output(열 글자)을 주면 그 한 열에만 범주를 쓴다. 같은 이름의 열이 이미 있으면(다시 분류) 그 열을 갱신한다.
+    돌려주는 값: 기록한 위치 설명."""
     from .classify import CHECK, FAILED
     names = [f"{column} 분류", f"{column} 분류 이유"]
     ws, n = t.ws, len(rows)
+    if output:
+        c = sum((ord(ch) - 64) * 26 ** i for i, ch in enumerate(reversed(output.upper())))
+        names, cols = names[:1], [c]
+        block = ws.Range(ws.Cells(t.region.Row, c), ws.Cells(t.region.Row + n, c))
+        if not overwrite and t.xl.WorksheetFunction.CountA(block):
+            raise PlanError(f"{col_letter(c)}열에 이미 내용이 있어 분류 결과를 쓰지 않았습니다. "
+                            "비어 있는 열을 지정하거나, 덮어써도 된다고 말씀해주세요.")
+        ws.Cells(t.region.Row, c).Value2 = names[0]
+        top = t.region.Row + 1
+        ws.Range(ws.Cells(top, c), ws.Cells(top + n - 1, c)).Value2 = tuple((r[0],) for r in rows)
+        ws.Range(ws.Cells(top, c), ws.Cells(top + n - 1, c)).Interior.ColorIndex = -4142
+        for i, (cat, _) in enumerate(rows):
+            if cat in (CHECK, FAILED):
+                ws.Cells(top + i, c).Interior.Color = 0x99E6FF if cat == CHECK else 0xC0C0FF
+        return f"{col_letter(c)}열 '{names[0]}'"
     if all(h in t.headers for h in names):
         cols = [t.region.Column + t.headers.index(h) for h in names]
     else:

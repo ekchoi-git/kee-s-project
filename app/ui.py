@@ -543,7 +543,7 @@ class Window(QWidget):
             done = []
             if cls:
                 res, values = cls
-                loc = write_classification(t, plan["classify"]["column"], res["rows"], plan["overwrite"])
+                loc = write_classification(t, plan["classify"]["column"], res["rows"], plan["overwrite"], plan["classify"]["output"])
                 done += classify.report(res, values, loc)
                 t = Target(t.ws)  # 분류 열이 붙은 표로 다시 읽어야 이어지는 정렬·필터가 그 열을 포함
             done += execute(t, plan)

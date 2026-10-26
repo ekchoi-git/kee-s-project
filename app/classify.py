@@ -118,7 +118,7 @@ def report(res, values, loc):
         ex = f" — 예: '{example[c['name']]}'" if c["name"] in example else ""
         lines.append(f"  {c['name']} {counts.get(c['name'], 0):,}건{d}{ex}")
     if counts.get(CHECK):
-        lines.append(f"{CHECK} {counts[CHECK]:,}건 (노란색 표시, 이유 열에 판단 근거)")
+        lines.append(f"{CHECK} {counts[CHECK]:,}건 (노란색 표시)")
     if res["failed"]:
         lines.append(f"⚠ {FAILED} {res['failed']:,}건 (빨간색 표시). 일부 AI 응답이 실패했습니다. 다시 분류하라고 하면 재시도합니다.")
     lines.append(f"서로 다른 설명 {res['sent']:,}건을 OpenAI로 보냄 · AI 호출 {res['calls']}회")
