@@ -127,6 +127,8 @@ QPushButton:hover { background: #f3f4f6; }
 #apikey { background: #2f3ce8; color: white; border: none; border-radius: 14px; padding: 6px 18px;
           font-weight: bold; letter-spacing: 1px; }
 #apikey:hover { background: #2531c4; }
+#botbox { background: white; border: 1px solid #e8e6df; border-radius: 14px; }
+#inner { background: transparent; color: #1f1f1d; border: none; padding: 0; }
 #suggest { background: #1f1f1d; color: white; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; }
 #suggest:hover { background: #3a3a37; }
 #suggest:disabled { background: #e8e6df; color: #888780; }
@@ -310,6 +312,8 @@ class Window(QWidget):
         out = []
         for line in text.split("\n"):
             body = html.escape(line.strip())
+            if "임의 판단" in body:  # 셀리가 원본과 다르게 다룬 내용은 놓치지 않게 굵게
+                body = f"<b>{body}</b>"
             if line.lstrip().startswith(("•", "-", "→")) and body[:1] in "•-→":
                 out.append(f'<p style="margin:0 0 3px 14px; text-indent:-14px">{body}</p>')
             else:
@@ -317,31 +321,36 @@ class Window(QWidget):
         return "".join(out)
 
     def say(self, text, kind="bot", action=None):
-        """action=(버튼 글, 누르면 할 일): 말풍선 아래 제안 버튼. 누르는 것 자체가 사용자 동의."""
+        """action=(버튼 글, 누르면 할 일): 말풍선 안 맨 아래 [제안] 버튼. 누르는 것 자체가 사용자 동의."""
         self.empty.hide()  # 대화가 시작되면 예시 버튼은 숨김
         label = QLabel(self._rich(text))
         label.setTextFormat(Qt.RichText)
         label.setObjectName(kind)
         label.setWordWrap(True)
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        bubble = label
+        if action:  # 말풍선 테두리를 바깥 틀로 옮기고 글과 버튼을 그 안에 함께 넣는다
+            bubble = QFrame()
+            bubble.setObjectName("botbox")
+            label.setObjectName("inner")
+            box = QVBoxLayout(bubble)
+            box.setContentsMargins(12, 10, 12, 10)
+            box.setSpacing(8)
+            box.addWidget(label)
+            btn = QPushButton("[제안] " + action[0])
+            btn.setObjectName("suggest")
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.clicked.connect(lambda: (btn.setEnabled(False), action[1]()))
+            box.addWidget(btn, 0, Qt.AlignLeft)
+            self.suggest_btn = btn
         fm = label.fontMetrics()
-        self.bubbles.append((label, kind, max(fm.horizontalAdvance(l.strip()) for l in text.splitlines() or [""])))
+        self.bubbles.append((bubble, kind, max(fm.horizontalAdvance(l.strip()) for l in text.splitlines() or [""])))
         self.fit_bubbles()
         row = QHBoxLayout()  # 줄바꿈 높이가 제대로 계산되도록 정렬은 여백(stretch)으로 처리
         if kind == "me":
             row.addStretch(1)
-        row.addWidget(label, 0 if kind == "me" else 1)  # 답변 말풍선은 최대 폭까지 늘어남
+        row.addWidget(bubble, 0 if kind == "me" else 1)  # 답변 말풍선은 최대 폭까지 늘어남
         self.chat.addLayout(row)
-        if action:
-            btn = QPushButton(action[0])
-            btn.setObjectName("suggest")
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.clicked.connect(lambda: (btn.setEnabled(False), action[1]()))
-            brow = QHBoxLayout()
-            brow.addWidget(btn)
-            brow.addStretch(1)
-            self.chat.addLayout(brow)
-            self.suggest_btn = btn
         QTimer.singleShot(0, lambda: self.scroll.verticalScrollBar().setValue(self.scroll.verticalScrollBar().maximum()))
 
     def fit_bubbles(self):
