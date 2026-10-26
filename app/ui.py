@@ -145,9 +145,6 @@ PHRASES = {
     "AI가 수식 오류를 고치는 중…": ["오류 원인을 살펴보는 중…", "수식을 다시 짜는 중…", "검산할 방법을 찾는 중…"],
     "Excel에 적용하는 중…": ["Excel에 적는 중…"],
 }
-SPIN_COLORS = ["#0b3fa8", "#0e4fc4", "#1c63de", "#2f76e8", "#4589ec", "#5f9cf0",
-               "#7ab0f3", "#95c3f6", "#aed5f8", "#c4e3fa", "#d6eefc", "#e3f5fd"]  # 진한 파랑 → 연한 하늘색
-
 
 class ChatInput(QPlainTextEdit):
     """입력창: 창이 좁아도 글이 다음 줄로 넘어가고 높이가 최대 6줄까지 늘어난다. Enter=보내기, Shift+Enter=줄바꿈."""
@@ -182,24 +179,47 @@ class ChatInput(QPlainTextEdit):
 
 
 class Spinner(QWidget):
-    """작업 중 아이콘: 원을 이룬 점 12개. step이 바뀔 때마다 진한 색이 한 칸씩 돈다."""
+    """작업 중 아이콘: 60도씩 엇갈린 기울어진 궤도 3개를 점 3개가 공전한다.
+    앞으로 오면 커지고 진해지고, 뒤로 가면 작아지고 흐려져 깊이감이 난다."""
+    PERIOD, TILT, DOT = 2.5, 0.3, 0.11  # 한 바퀴 초, 궤도 기울기(세로/가로), 점 반지름(크기 대비)
+    COLOR = (180, 83, 42)  # 작업 중 문구(#b4532a)와 같은 색
 
-    def __init__(self, size=18):
+    def __init__(self, size=20):
         super().__init__()
-        self.step = 0
         self.setFixedSize(size, size)
         self.setAttribute(Qt.WA_TranslucentBackground)
+        self.t0 = time.monotonic()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update)
+
+    def start(self):
+        if not self.timer.isActive():
+            self.t0 = time.monotonic()
+            self.timer.start(30)  # 약 33프레임/초: 부드럽게 돌 만큼만
+        self.show()
+
+    def stop(self):
+        self.timer.stop()
+        self.hide()
 
     def paintEvent(self, e):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setPen(Qt.NoPen)
         s = self.width()
-        c, rad, dot = s / 2, s * 0.38, s * 0.075
-        for i in range(12):
-            a = i / 12 * 2 * math.pi - math.pi / 2
-            p.setBrush(QColor(SPIN_COLORS[(i - self.step) % 12]))
-            p.drawEllipse(QPointF(c + rad * math.cos(a), c + rad * math.sin(a)), dot, dot)
+        dot = s * self.DOT
+        c, rad = s / 2, s / 2 - dot - 0.5
+        spin = (time.monotonic() - self.t0) / self.PERIOD * 2 * math.pi
+        pts = []
+        for k in range(3):
+            rot, a = k * math.pi / 3, spin + k * 2 * math.pi / 3
+            ex, ey = math.cos(a) * rad, math.sin(a) * rad * self.TILT
+            pts.append((math.sin(a), c + ex * math.cos(rot) - ey * math.sin(rot), c + ex * math.sin(rot) + ey * math.cos(rot)))
+        for z, x, y in sorted(pts):  # 뒤에 있는 점부터 그려 앞의 점이 가리게
+            f = (z + 1) / 2
+            p.setBrush(QColor(*self.COLOR, int(255 * (0.3 + 0.7 * f))))
+            r = dot * (0.55 + 0.45 * f)
+            p.drawEllipse(QPointF(x, y), r, r)
 
 
 class Window(QWidget):
@@ -550,7 +570,7 @@ class Window(QWidget):
         elif not msg:
             self.spinner.stop()
             self.busy.setText("")
-            self.dots.hide()
+            self.dots.stop()
         self.busy_msg = msg
         if msg:
             self.spin()
@@ -562,9 +582,7 @@ class Window(QWidget):
         if not self.busy_msg:
             return
         self.busy_tick += 1
-        self.dots.step = self.busy_tick % 12
-        self.dots.show()
-        self.dots.update()
+        self.dots.start()
         phrases = PHRASES.get(self.busy_msg, [self.busy_msg])
         secs = int(time.monotonic() - self.busy_start)
         phrase = phrases[(secs // 3) % len(phrases)]
