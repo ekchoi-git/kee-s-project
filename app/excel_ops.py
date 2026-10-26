@@ -102,6 +102,17 @@ def text_numbers(t, j):
     return [(t.region.Row + i, x) for i, (x,) in enumerate(v) if i and _num(x) is not None]
 
 
+def bad_text(t, j):
+    """대부분 날짜·숫자인 열에 섞인, 숫자로도 읽을 수 없는 글자 칸(예: '날짜미상', '2023/02/30'). YEAR·SUM에서 오류나 누락이 된다."""
+    v = t.region.Columns(j + 1).Value2
+    v = v if isinstance(v, tuple) else ((v,),)
+    vals = [x for (x,) in v[1:] if not blank(x)]
+    nums = sum(1 for x in vals if isinstance(x, (int, float)) and not isinstance(x, bool))
+    if nums * 2 <= len(vals):
+        return []
+    return [(t.region.Row + i, x) for i, (x,) in enumerate(v) if i and isinstance(x, str) and not blank(x) and _num(x) is None]
+
+
 def spots(letter, rows, limit=5):
     """[452..461, 480] → 'D452~D461, D480'. 묶음이 많으면 앞 몇 개만."""
     runs = []
@@ -186,6 +197,11 @@ def assumption_notes(t, formulas, same_sheet):
             where = spots(letter, [r for r, _ in tn])
             notes.append(f"⚠ 임의 판단: {letter}열 '{h}'의 글자로 저장된 숫자 {len(tn)}칸({where})을 "
                          + (f"숫자로 바꿔 포함 → 원본 {letter}열 SUM보다 {amt} 많음" if converts else f"제외 → 합계에서 {amt} 빠짐"))
+        junk = bad_text(t, j)
+        if junk:
+            where = spots(letter, [r for r, _ in junk])
+            notes.append(f"⚠ 임의 판단: {letter}열 '{h}'의 날짜·숫자가 아닌 글자 {len(junk)}칸({where})"
+                         + ("을 '(날짜 오류)' 묶음으로 따로 집계" if "(날짜 오류)" in text else "은 계산할 수 없어 오류나 누락이 생길 수 있음"))
         bl = rows_where(t, j, blank)
         grouped = "(빈 값)" in text and re.search(rf"\$?{letter}\$?\d+(:\$?{letter}\$?\d+)?\s*=\s*\"\"", text)
         if bl and grouped:
@@ -306,8 +322,10 @@ class Target:
             col = [(row[j],) for row in v]
             blank = sum(1 for (x,) in col if x is None or (isinstance(x, str) and not x.strip()))
             text_num = numeric_text(col)
-            if blank or text_num:
-                notes.append(f"{h}: " + ", ".join(p for p in (blank and f"빈 칸 {blank}개", text_num and f"숫자처럼 보이는 글자 {text_num}개") if p))
+            junk = bad_text(self, j)
+            junk = junk and f"날짜·숫자가 아닌 글자 {len(junk)}개({spots(col_letter(self.region.Column + j), [r for r, _ in junk])})"
+            if blank or text_num or junk:
+                notes.append(f"{h}: " + ", ".join(p for p in (blank and f"빈 칸 {blank}개", text_num and f"숫자처럼 보이는 글자 {text_num}개", junk) if p))
         return ["열별 주의할 값: " + "; ".join(notes)] if notes else []
 
     def outside(self, limit=40):
