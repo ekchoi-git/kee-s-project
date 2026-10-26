@@ -406,10 +406,6 @@ def _execute(t, plan, stage):
             out_ws.Columns.AutoFit()
             ws.Activate()
             done.append(f"새 시트 '{out_ws.Name}'에 작성")
-        for w in plan["writes"][:12]:
-            done.append(f"입력: {w['address']}  {w['content']}")
-        if len(plan["writes"]) > 12:
-            done.append(f"… 외 {len(plan['writes']) - 12}곳")
         if errs:
             done.append("⚠ 일부 칸 오류(데이터 때문일 수 있음): " + ", ".join(f"{k} {v}칸" for k, v in errs.items()))
         if plan["edit_source"]:
