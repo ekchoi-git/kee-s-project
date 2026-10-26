@@ -324,16 +324,14 @@ class Window(QWidget):
         row = QHBoxLayout()  # 줄바꿈 높이가 제대로 계산되도록 정렬은 여백(stretch)으로 처리
         if kind == "me":
             row.addStretch(1)
-        row.addWidget(label)
-        if kind != "me":
-            row.addStretch(1)
+        row.addWidget(label, 0 if kind == "me" else 1)  # 답변 말풍선은 최대 폭까지 늘어남
         self.chat.addLayout(row)
         QTimer.singleShot(0, lambda: self.scroll.verticalScrollBar().setValue(self.scroll.verticalScrollBar().maximum()))
 
     def fit_bubbles(self):
         """말풍선 폭을 창 폭에 맞춘다. 줄바꿈 글상자는 Qt가 폭을 좁게 잡으므로 글이 들어갈 만큼은 넓힌다."""
         for label, kind, longest in self.bubbles:
-            maxw = max(200, int((self.width() - 60) * (0.85 if kind == "me" else 0.95)))
+            maxw = max(200, int((self.width() - 60) * (0.85 if kind == "me" else 1)))
             label.setMaximumWidth(maxw)
             label.setMinimumWidth(min(maxw, longest + 48))
 
