@@ -44,8 +44,6 @@ def validate(plan, headers):
             bad.append(f"'{w['address']}'는 이 시트의 셀 주소가 아닙니다.")
         if BLOCKED_FN.search(w["content"]) or EXTERNAL.search(w["content"]):
             bad.append(f"'{w['content'][:60]}'는 외부 연결·다른 파일·추가 기능이 필요한 수식이라 실행하지 않습니다.")
-    if plan["new_sheet"] and not plan["writes"]:
-        bad.append("새 시트에 쓸 내용이 없습니다.")
     bad += [f"'{c}' 열이 표에 없습니다." for c in plan["to_number"] if c not in headers]
     if plan["to_number"] and not plan["edit_source"]:
         bad.append("원본 수정 지시 없이 원본 값을 바꾸려 했습니다.")
