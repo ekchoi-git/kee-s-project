@@ -1,4 +1,5 @@
 """대화창. 상단: Excel 연결·작업 대상, 가운데: 대화, 하단: 입력."""
+import html
 import threading
 import time
 
@@ -147,6 +148,7 @@ class Window(QWidget):
         self.setWindowTitle("셀리")
         self.resize(420, 760)
         self.files = []
+        self.bubbles = []       # (말풍선, 종류, 가장 긴 줄 폭): 창 크기에 맞춰 폭을 다시 잡는다
         self.sheet = None       # 지금 작업 대상 시트 개체
         self.sheet_key = None   # (파일, 시트 이름): 바뀌었을 때만 다시 읽기 위함
 
@@ -297,17 +299,28 @@ class Window(QWidget):
         self.refresh()
         self.show_key()
 
+    @staticmethod
+    def _rich(text):
+        """줄이 길어져 바뀌어도 글머리(•, -) 아래 줄이 글자에 맞춰 들여쓰이도록 HTML로 만든다."""
+        out = []
+        for line in text.split("\n"):
+            body = html.escape(line.strip())
+            if line.lstrip().startswith(("•", "-", "→")) and body[:1] in "•-→":
+                out.append(f'<p style="margin:0 0 3px 14px; text-indent:-14px">{body}</p>')
+            else:
+                out.append(f'<p style="margin:0 0 3px 0">{body or "&nbsp;"}</p>')
+        return "".join(out)
+
     def say(self, text, kind="bot"):
         self.empty.hide()  # 대화가 시작되면 예시 버튼은 숨김
-        label = QLabel(text)
+        label = QLabel(self._rich(text))
+        label.setTextFormat(Qt.RichText)
         label.setObjectName(kind)
         label.setWordWrap(True)
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        maxw = 340 if kind == "me" else 380
-        label.setMaximumWidth(maxw)
-        # 줄바꿈 글상자는 Qt가 폭을 좁게 잡으므로, 글이 들어갈 만큼은 넓힌다
         fm = label.fontMetrics()
-        label.setMinimumWidth(min(maxw, max(fm.horizontalAdvance(l) for l in text.splitlines() or [""]) + 48))
+        self.bubbles.append((label, kind, max(fm.horizontalAdvance(l.strip()) for l in text.splitlines() or [""])))
+        self.fit_bubbles()
         row = QHBoxLayout()  # 줄바꿈 높이가 제대로 계산되도록 정렬은 여백(stretch)으로 처리
         if kind == "me":
             row.addStretch(1)
@@ -316,6 +329,17 @@ class Window(QWidget):
             row.addStretch(1)
         self.chat.addLayout(row)
         QTimer.singleShot(0, lambda: self.scroll.verticalScrollBar().setValue(self.scroll.verticalScrollBar().maximum()))
+
+    def fit_bubbles(self):
+        """말풍선 폭을 창 폭에 맞춘다. 줄바꿈 글상자는 Qt가 폭을 좁게 잡으므로 글이 들어갈 만큼은 넓힌다."""
+        for label, kind, longest in self.bubbles:
+            maxw = max(200, int((self.width() - 60) * (0.85 if kind == "me" else 0.95)))
+            label.setMaximumWidth(maxw)
+            label.setMinimumWidth(min(maxw, longest + 48))
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self.fit_bubbles()
 
     def show_target(self, text, bad=False):
         self.target.setText(text)
