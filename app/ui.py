@@ -5,10 +5,10 @@ import threading
 import time
 
 from PySide6.QtCore import QByteArray, QObject, QPointF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
-                               QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget)
+                               QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from . import ai, classify
 from .excel_conn import ExcelError, active_sheet, list_files, read_summary
@@ -149,6 +149,38 @@ SPIN_COLORS = ["#0b3fa8", "#0e4fc4", "#1c63de", "#2f76e8", "#4589ec", "#5f9cf0",
                "#7ab0f3", "#95c3f6", "#aed5f8", "#c4e3fa", "#d6eefc", "#e3f5fd"]  # 진한 파랑 → 연한 하늘색
 
 
+class ChatInput(QPlainTextEdit):
+    """입력창: 창이 좁아도 글이 다음 줄로 넘어가고 높이가 최대 6줄까지 늘어난다. Enter=보내기, Shift+Enter=줄바꿈."""
+    returnPressed = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.document().documentLayout().documentSizeChanged.connect(self.fit)
+        self.fit()
+
+    def text(self):
+        return self.toPlainText()
+
+    def setText(self, s):
+        self.setPlainText(s)
+        self.moveCursor(QTextCursor.End)
+
+    def fit(self, *_):
+        total = int(self.document().size().height())  # 줄바꿈된 줄 수(문서 높이 단위가 줄)
+        lines = max(1, min(6, total))
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded if total > 6 else Qt.ScrollBarAlwaysOff)
+        h = self.fontMetrics().lineSpacing() * lines + 2 * self.document().documentMargin() + 18
+        self.setFixedHeight(int(h))
+
+    def keyPressEvent(self, e):
+        if e.key() in (Qt.Key_Return, Qt.Key_Enter) and not e.modifiers() & Qt.ShiftModifier:
+            self.returnPressed.emit()
+            return
+        super().keyPressEvent(e)
+
+
 class Spinner(QWidget):
     """작업 중 아이콘: 원을 이룬 점 12개. step이 바뀔 때마다 진한 색이 한 칸씩 돈다."""
 
@@ -263,7 +295,7 @@ class Window(QWidget):
         cv.addLayout(crow)
         cv.addWidget(self.target)
 
-        self.entry = QLineEdit()
+        self.entry = ChatInput()
         self.entry.setObjectName("entry")
         self.entry.setPlaceholderText("셀리에게 하고 싶은 일을 말로 적어주세요")
         self.entry.returnPressed.connect(self.send)
