@@ -7,7 +7,7 @@ import threading
 import time
 
 from PySide6.QtCore import QByteArray, QObject, QPointF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFontDatabase, QIcon, QLinearGradient, QPainter, QPen, QPixmap, QTextCursor
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QLinearGradient, QPainter, QPen, QPixmap, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
@@ -101,7 +101,7 @@ QWidget { font-family: 'Pretendard', 'Malgun Gothic'; font-size: 13px; backgroun
 #head { border-bottom: 1px solid #e8e6df; }
 #hello { font-size: 15px; color: #1f1f1d; }
 #hint { color: #888780; font-size: 12px; }
-#pill { border: 1px solid #dcdad3; border-radius: 17px; padding: 7px 16px; background: white; color: #1f1f1d; }
+#pill { border: 1px solid #dcdad3; border-radius: 17px; padding: 7px 16px; min-height: 20px; background: white; color: #1f1f1d; }
 #pill:hover { background: #f5f4ef; }
 #busy { color: #b4532a; padding: 0 4px; }
 #dot { color: #3b9a3b; font-size: 11px; background: transparent; }
@@ -127,7 +127,7 @@ QPushButton:hover { background: #f3f4f6; }
 #sendicon:disabled { background: #b4b2a9; }
 #undoicon { border: none; border-radius: 16px; padding: 0; background: transparent; }
 #undoicon:hover { background: #f1efe8; }
-#apikey { background: #2f3ce8; color: white; border: none; border-radius: 14px; padding: 6px 18px;
+#apikey { background: #2f3ce8; color: white; border: none; border-radius: 14px; padding: 6px 18px; min-height: 16px;
           font-weight: bold; letter-spacing: 1px; }
 #apikey:hover { background: #2531c4; }
 #botbox { background: white; border: 1px solid #e8e6df; border-radius: 14px; }
@@ -802,8 +802,12 @@ class Window(QWidget):
 def load_fonts():
     """함께 넣어 둔 프리텐다드를 셀리 안에서만 쓰도록 불러온다(PC에 설치 불필요).
     실패해도 STYLE의 다음 글꼴인 맑은 고딕으로 보인다. exe에는 app/fonts 폴더를 함께 넣어야 한다."""
-    for path in glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "*.otf")):
+    for path in glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "*.ttf")):
         QFontDatabase.addApplicationFont(path)
+    # 힌팅: 획을 픽셀 경계에 맞춰 작은 글자도 또렷하게(끄면 13px에서 흐려 보임). TTF여야 효과가 큼
+    f = QApplication.font()
+    f.setHintingPreference(QFont.PreferFullHinting)
+    QApplication.setFont(f)
 
 
 def main():
