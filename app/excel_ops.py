@@ -568,11 +568,23 @@ def _execute(t, plan, stage):
 
     stage[0] = "필터"
     for f in plan["filters"]:
-        crit = CRITERIA[f["op"]].format(f["value"])
+        value = f["value"]
+        if f["op"] == "=" and isinstance(value, str):
+            # 사용자가 띄어쓰기를 빼고 쓴 값('확인필요')이 칸의 실제 값('확인 필요')과 다르면 실제 값으로
+            cells = {x for _, x in rows_where(t, idx[f["column"]] - 1, lambda x: isinstance(x, str))}
+            squash = lambda s: "".join(s.split()).casefold()
+            if value not in cells:
+                same = [x for x in cells if squash(x) == squash(value)]
+                if len(same) == 1:
+                    value = same[0]
+                    done.append(f"임의 판단: '{f['value']}'은 '{value}'로 보고 걸렀습니다(띄어쓰기 차이).")
+        crit = CRITERIA[f["op"]].format(value)
         t.region.AutoFilter(Field=idx[f["column"]], Criteria1=crit)
-        done.append(f"필터: {f['column']} {f['op']} {f['value']}".rstrip())
+        done.append(f"필터: {f['column']} {f['op']} {value}".rstrip())
     if plan["filters"]:
         shown = int(xl.WorksheetFunction.Subtotal(103, t.region.Columns(1))) - 1
+        if shown <= 0:  # 전부 숨기면 데이터가 사라진 것처럼 보이므로 걸지 않음(호출한 쪽이 되돌림)
+            raise PlanError("필터 조건에 맞는 행이 없어 필터를 걸지 않았습니다. 열에 실제로 있는 값과 정확히 같은지 확인해주세요.")
         done.append(f"→ 조건에 맞아 보이는 행 {shown}개")
 
     stage[0] = "셀 입력"
