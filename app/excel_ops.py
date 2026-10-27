@@ -164,6 +164,24 @@ def rebuilds(t, plan):
         for w in plan["writes"]))
 
 
+SAME_SHEET_REF = re.compile(r"(?<![!\w$'.:])\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?(?![\w(])")
+
+
+def stale_refs(t, writes, ranges):
+    """표를 비우고 다시 쓸 때, 비운 뒤 다시 채워지지 않는 옛 표 칸을 읽는 수식 참조 목록.
+    새로 쓰는 칸(및 그 펼침 B1# 등)을 가리키는 참조는 괜찮다."""
+    xl, bad = t.xl, []
+    for w in writes:
+        if not w["content"].startswith("="):
+            continue
+        body = re.sub(r'"[^"]*"', '""', w["content"])  # 따옴표 안 글자는 참조가 아님
+        for ref in SAME_SHEET_REF.findall(body):
+            rng = t.ws.Range(ref)
+            if xl.Intersect(rng, t.region) is not None and not any(xl.Intersect(rng, r) is not None for r in ranges):
+                bad.append(f"{w['address']}의 {ref}")
+    return bad
+
+
 def _col_index(letters):
     return sum((ord(ch) - 64) * 26 ** i for i, ch in enumerate(reversed(letters.upper())))
 
@@ -571,6 +589,10 @@ def _execute(t, plan, stage):
         dyn = dynamic_arrays(ws)
         rebuilt = out_ws is ws and rebuilds(t, plan)
         if rebuilt:
+            stale = stale_refs(t, plan["writes"], ranges)
+            if stale:  # 곧 비울 옛 표를 읽는 수식은 빈 칸·0만 낸다 (예: A2에 =TRANSPOSE(A2:C5))
+                raise FormulaError(f"새 수식이 곧 비울 기존 표({t.region.Address.replace('$', '')})를 참조합니다: "
+                                   + ", ".join(stale) + ". 기존 표 대신 원본 데이터에서 다시 계산해야 합니다.")
             t.region.ClearContents()
             done.append(f"기존 표 {t.region.Address.replace('$', '')}를 비우고 새로 씀")
         for w, r in zip(plan["writes"], ranges):
@@ -591,10 +613,30 @@ def _execute(t, plan, stage):
                 grid = [line.split("\t") for line in w["content"].split("\n")]
                 width = max(len(g) for g in grid)
                 grid = tuple(tuple(g + [""] * (width - len(g))) for g in grid)
-                out_ws.Range(r.Cells(1, 1), r.Cells(len(grid), width)).Value2 = grid
+                block = out_ws.Range(r.Cells(1, 1), r.Cells(len(grid), width))
+                if any(c.startswith("=") for g in grid for c in g):
+                    # 글자와 수식이 섞였으면 칸마다 수식으로 넣어야 펼쳐진다(Value2로 넣으면 한 칸 값만 남음)
+                    for i, g in enumerate(grid):
+                        for j, c in enumerate(g):
+                            cell = block.Cells(i + 1, j + 1)
+                            if c.startswith("=") and dyn:
+                                cell.Formula2 = c
+                            else:
+                                cell.Formula = c
+                else:
+                    block.Value2 = grid
             else:
                 r.Value2 = w["content"]
         xl.Calculate()
+        try:
+            circ = out_ws.CircularReference
+        except Exception:
+            circ = None
+        if circ is not None:  # 순환 참조는 오류 대신 0을 내서 아래 오류 검사에 걸리지 않음
+            # Excel은 순환 고리 중 한 칸만 알려주므로 그 칸 수식이 원인이라고 단정하지 않는다
+            raise FormulaError(f"새 수식들이 서로 또는 자기 결과를 다시 참조합니다(순환 참조, Excel이 표시한 칸: "
+                               f"{circ.Address.replace('$', '')}).\n  쓴 수식: "
+                               + "; ".join(f"{w['address']} {w['content'][:120]}" for w in plan["writes"] if w["content"].startswith("=")))
         errs, broken = {}, []
         for w, r in zip(plan["writes"], ranges):
             out = r.SpillingToRange if r.Count == 1 and dyn and r.HasSpill else r
