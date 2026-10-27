@@ -884,6 +884,7 @@ def load_fonts():
 
 def main():
     app = QApplication([])
+    app.setWindowIcon(QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "celli-icon.png")))
     app.setStyleSheet(STYLE)
     load_fonts()  # 스타일시트 뒤에: 먼저 하면 확인 창·목록 같은 별도 창의 힌팅이 기본값으로 돌아가 흐려짐
     win = Window()

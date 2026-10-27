@@ -19,3 +19,14 @@
 ## 반복하면 안 되는 것
 - 테스트용 Excel은 반드시 `win32com.client.DispatchEx`(별도 인스턴스). `Dispatch`는 사용자가 열어 둔 Excel에 붙어서 `Quit()` 하면 사용자 작업까지 닫힘.
 - 필터가 걸린 범위의 `Copy`는 보이는 행만 복사함. 원본 복원·이동 전에 필터를 먼저 풀 것.
+
+## 아이콘 논의 (2026-10-27)
+- 사용자가 Windows 제목 표시줄의 기본 아이콘을 대체할 디자인을 요청함. `app/ui.py`의 현재 색상은 녹색 `#3b9a3b`, 갈색 `#b4532a`, 크림색 계열. 디자인 추천 단계이며 아이콘 제작·적용은 아직 요청되지 않음.
+- 아이콘 시안 3개를 `assets/icon-concepts/`에 SVG와 PNG로 제작: `01-talking-cell`, `02-smart-sheet`, `03-celli-mascot`. 사용자의 선택을 기다리며 앱 적용은 아직 하지 않음.
+- 사용자가 별도로 첨부한 흰 타일·청록색 `s` 아이콘을 선택하고 글자만 `c`로 변경 요청. 수정 시안을 `assets/icon-concepts/04-celli-c.png`에 저장함.
+- 이후 사용자가 `c` 디자인 적용을 요청함. `app/assets/celli-icon.png`와 다중 크기 `celli-icon.ico`를 만들고, `app/ui.py`의 창 아이콘 및 `build.bat`의 exe 아이콘·리소스 포함 설정에 연결함. Python 구문 검사, ICO 크기 확인, `git diff --check` 통과. 실제 앱 실행·exe 빌드는 아직 확인하지 않음.
+- 창 전체 UI는 변경 전 시안 `assets/mockups/celli-window-preview.png`(원본 SVG 포함)으로 제작함. 사용자 피드백 후 실제 UI에 반영할 것. 현재 기능 흐름(Excel 선택, 예시 요청, 입력, 되돌리기)을 유지한 청록색 시안이다.
+- 사용자 정정: 바꿀 범위는 창 전체가 아니라 첨부 화면의 Windows 제목 표시줄뿐이다. 이전 전체 창 시안은 채택하지 않음. 새 제목 표시줄 시안은 `assets/mockups/celli-titlebar-preview.png`(SVG 원본 포함). 제목 표시줄 스타일은 아직 실제 앱에 적용하지 않음.
+- 제목 표시줄 시안의 `c` 아이콘 주변 얇은 테두리를 제거해 PNG를 다시 렌더링함. 실제 제목 표시줄 스타일 적용은 아직 하지 않음.
+- **적용 완료**: AI 생성 이미지의 회색 바깥 테두리·흐림을 없애려고 `app/assets/celli-icon.png`(1024)·`.ico`(16~256)를 PIL로 새로 그림(흰 둥근 타일 + 청록 `#01C3B9` c, 바깥 투명). 실제 앱 실행해 제목 표시줄 아이콘 확인, 캡처 `assets/celli-window-preview.png`. exe 빌드 아이콘은 아직 확인 안 함.
+- 테스트로 셀리를 띄울 때: 사용자가 이미 셀리를 켜 둘 수 있으므로 창 제목이 아니라 내가 띄운 PID로 창을 찾고, 끝나면 그 PID만 종료할 것.

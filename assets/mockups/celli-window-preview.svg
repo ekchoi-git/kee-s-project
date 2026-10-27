@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="980" viewBox="0 0 600 980">
+  <defs>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="18" stdDeviation="26" flood-color="#193D3A" flood-opacity=".15"/></filter>
+    <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#E8FAF7"/><stop offset="1" stop-color="#F9FEFC"/></linearGradient>
+  </defs>
+  <rect width="600" height="980" fill="#E9F0EF"/>
+  <rect x="40" y="28" width="520" height="924" rx="18" fill="#FFFFFF" filter="url(#shadow)"/>
+  <path d="M58 28h484a18 18 0 0 1 18 18v25H40V46a18 18 0 0 1 18-18Z" fill="#F8FBFA"/>
+  <path d="M40 71h520" stroke="#E5EEEB"/>
+  <rect x="57" y="41" width="20" height="20" rx="5" fill="#FFFFFF" stroke="#E9F1EE"/>
+  <path d="M70 46a6 6 0 1 0 0 10" fill="none" stroke="#0CBDB6" stroke-width="3.6" stroke-linecap="round"/>
+  <text x="85" y="56" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="14" fill="#253936">셀리</text>
+  <path d="M454 50h12M493 46v11h11V46M531 46l10 10m0-10-10 10" fill="none" stroke="#60716E" stroke-width="1.6" stroke-linecap="round"/>
+
+  <rect x="40" y="72" width="520" height="82" fill="#FFFFFF"/>
+  <rect x="61" y="91" width="40" height="40" rx="11" fill="#FFFFFF" stroke="#E6F0ED"/>
+  <path d="M87 101a10 10 0 1 0 0 19" fill="none" stroke="#0CBDB6" stroke-width="6" stroke-linecap="round"/>
+  <text x="114" y="118" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="22" font-weight="700" fill="#183A37">셀리</text>
+  <text x="114" y="137" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="12" fill="#71827D">Excel 작업을 말로 간편하게</text>
+  <rect x="459" y="99" width="79" height="32" rx="16" fill="#F2F7F5"/>
+  <text x="476" y="120" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="12" fill="#526A64">⚿  API 키</text>
+  <path d="M40 154h520" stroke="#E7EFEC"/>
+
+  <rect x="61" y="175" width="478" height="84" rx="16" fill="#F7FAF9" stroke="#E6EEEB"/>
+  <circle cx="86" cy="202" r="5" fill="#16B889"/>
+  <text x="101" y="207" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="12" font-weight="700" fill="#427065">연결된 Excel</text>
+  <text x="78" y="239" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="14" font-weight="600" fill="#233D39">지역별 청약 경쟁률 정보.xlsx</text>
+  <text x="495" y="239" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="17" fill="#607B74">⌄</text>
+
+  <rect x="61" y="282" width="478" height="145" rx="20" fill="url(#hero)" stroke="#DFF1EC"/>
+  <rect x="81" y="303" width="38" height="38" rx="12" fill="#0DBCB3"/>
+  <path d="M106 313a9 9 0 1 0 0 18" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+  <text x="131" y="328" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="16" font-weight="700" fill="#193F3B">무엇을 도와드릴까요?</text>
+  <text x="82" y="363" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="13" fill="#516E67">열린 Excel의 데이터를 살펴보고 바로 작업할게요.</text>
+  <text x="82" y="389" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="12" fill="#6D8780">결과가 마음에 들지 않으면 직전 작업을 되돌릴 수 있어요.</text>
+
+  <text x="62" y="467" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="14" font-weight="700" fill="#263F3A">이런 작업부터 시작해 보세요</text>
+  <rect x="61" y="484" width="478" height="61" rx="14" fill="#FFFFFF" stroke="#E3ECE8"/>
+  <rect x="76" y="498" width="32" height="32" rx="9" fill="#E8F8F2"/>
+  <path d="M84 509h17m-17 6h17m-17 6h12" stroke="#0E987E" stroke-width="2" stroke-linecap="round"/>
+  <text x="123" y="519" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="13" fill="#263F3A">회사별·연도별 금액 합계 만들기</text>
+  <text x="510" y="520" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="18" fill="#8AA49B">›</text>
+  <rect x="61" y="555" width="478" height="61" rx="14" fill="#FFFFFF" stroke="#E3ECE8"/>
+  <rect x="76" y="569" width="32" height="32" rx="9" fill="#E9F7FA"/>
+  <path d="M83 590v-9m7 9v-15m7 15v-6" stroke="#20AAB6" stroke-width="3" stroke-linecap="round"/>
+  <text x="123" y="590" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="13" fill="#263F3A">데이터를 피벗 테이블로 요약하기</text>
+  <text x="510" y="591" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="18" fill="#8AA49B">›</text>
+  <rect x="61" y="626" width="478" height="61" rx="14" fill="#FFFFFF" stroke="#E3ECE8"/>
+  <rect x="76" y="640" width="32" height="32" rx="9" fill="#FFF2E8"/>
+  <path d="M82 650h20l-8 9v7" fill="none" stroke="#C27B42" stroke-width="2.5" stroke-linejoin="round"/>
+  <text x="123" y="661" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="13" fill="#263F3A">조건에 맞는 행만 골라 정렬하기</text>
+  <text x="510" y="662" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="18" fill="#8AA49B">›</text>
+
+  <path d="M40 761h520" stroke="#E7EFEC"/>
+  <text x="63" y="791" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="12" fill="#78918A">작업 대상  ·  현재 시트: Sheet1</text>
+  <rect x="61" y="808" width="478" height="104" rx="18" fill="#FFFFFF" stroke="#CFDEDA"/>
+  <text x="79" y="838" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="13" fill="#899C96">셀리에게 하고 싶은 일을 말로 적어주세요</text>
+  <circle cx="93" cy="883" r="16" fill="#F4F8F6"/>
+  <path d="M99 882a7 7 0 1 1-3-6m0 0v-4m0 4h-4" fill="none" stroke="#58736B" stroke-width="1.7" stroke-linecap="round"/>
+  <circle cx="505" cy="881" r="17" fill="#0CBDB6"/>
+  <path d="M505 889v-16m0 0-7 7m7-7 7 7" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="64" y="937" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="11" fill="#8CA09A">시안 · 실제 UI 적용 전 미리보기</text>
+</svg>

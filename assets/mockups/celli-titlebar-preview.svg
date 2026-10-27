@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1036" height="76" viewBox="0 0 518 38">
+  <rect width="518" height="38" fill="#FFFFFF"/>
+  <rect x="0" y="36" width="518" height="2" fill="#D8F1EF"/>
+  <rect x="7" y="6" width="25" height="25" rx="6" fill="#FFFFFF"/>
+  <path d="M25.4 13.2a7.3 7.3 0 1 0 0 10.6" fill="none" stroke="#08BDB6" stroke-width="4.1" stroke-linecap="round"/>
+  <text x="40" y="25" font-family="Pretendard,Malgun Gothic,sans-serif" font-size="16" font-weight="600" fill="#183B38">셀리</text>
+  <path d="M375 19h12" fill="none" stroke="#243936" stroke-width="1.1"/>
+  <rect x="428" y="14" width="10" height="10" rx=".4" fill="none" stroke="#243936" stroke-width="1.1"/>
+  <path d="M486 14l10 10m0-10-10 10" fill="none" stroke="#243936" stroke-width="1.1" stroke-linecap="round"/>
+</svg>
