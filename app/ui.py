@@ -1,11 +1,13 @@
 """대화창. 상단: Excel 연결·작업 대상, 가운데: 대화, 하단: 입력."""
+import glob
 import html
+import os
 import math
 import threading
 import time
 
 from PySide6.QtCore import QByteArray, QObject, QPointF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QIcon, QLinearGradient, QPainter, QPen, QPixmap, QTextCursor
+from PySide6.QtGui import QColor, QFontDatabase, QIcon, QLinearGradient, QPainter, QPen, QPixmap, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
@@ -94,7 +96,7 @@ class Bridge(QObject):
     classified = Signal(object, object)
 
 STYLE = """
-QWidget { font-family: 'Malgun Gothic'; font-size: 13px; background: white; }
+QWidget { font-family: 'Pretendard', 'Malgun Gothic'; font-size: 13px; background: white; }
 #title { font-size: 17px; font-weight: bold; color: #1f1f1d; }
 #head { border-bottom: 1px solid #e8e6df; }
 #hello { font-size: 15px; color: #1f1f1d; }
@@ -797,8 +799,16 @@ class Window(QWidget):
         self.say("↩ 직전 AI 작업을 되돌렸습니다.")
 
 
+def load_fonts():
+    """함께 넣어 둔 프리텐다드를 셀리 안에서만 쓰도록 불러온다(PC에 설치 불필요).
+    실패해도 STYLE의 다음 글꼴인 맑은 고딕으로 보인다. exe에는 app/fonts 폴더를 함께 넣어야 한다."""
+    for path in glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "*.otf")):
+        QFontDatabase.addApplicationFont(path)
+
+
 def main():
     app = QApplication([])
+    load_fonts()
     app.setStyleSheet(STYLE)
     win = Window()
     # Excel 옆에 나란히 보이도록 화면 오른쪽에 세로로 길게 붙인다
