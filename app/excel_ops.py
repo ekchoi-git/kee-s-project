@@ -611,6 +611,8 @@ def _execute(t, plan, stage):
             if w["content"].startswith("="):
                 if len(w["content"]) > 8000:  # Excel 수식 길이 한도 8192자
                     raise FormulaError(f"{w['address']} 수식이 {len(w['content']):,}자로 Excel 한도를 넘습니다. 더 짧은 수식으로 만들어야 합니다.")
+                if out_ws is ws and xl.Intersect(r, t.region) is not None and in_place(ws, xl, r, w["content"]):
+                    continue
                 try:
                     if dyn:
                         r.Formula2 = w["content"]
@@ -708,6 +710,31 @@ def _execute(t, plan, stage):
         done.append(f"피벗: 새 시트 '{name}' (행 {', '.join(p['rows']) or '-'} / 열 {', '.join(p['columns']) or '-'})")
         done += pivot_notes(t, p)
     return done
+
+
+def in_place(ws, xl, r, formula):
+    """원본 칸을 자기 값으로 고치는 수식(예: I2:I877 =IF($I2="확인 필요",...,$I2))은 그 자리에 두면 순환 참조라,
+    빈 열에서 계산해 값만 붙인다. 자기 칸을 읽지 않는 수식이면 False(그대로 수식으로 씀)."""
+    used = ws.UsedRange
+    c0 = used.Column + used.Columns.Count + 1
+    tmp = ws.Range(ws.Cells(r.Row, c0), ws.Cells(r.Row + r.Rows.Count - 1, c0 + r.Columns.Count - 1))
+    try:
+        try:
+            tmp.Formula = formula  # 글자 주소는 첫 칸 기준이라 다른 열에 써도 같은 칸을 읽음
+        except pywintypes.com_error as e:
+            raise FormulaError(f"Excel이 {r.Address.replace('$', '')} 수식을 받아들이지 않았습니다.\n  {formula[:200]}") from e
+        xl.Calculate()
+        try:
+            own = xl.Intersect(tmp.Cells(1, 1).DirectPrecedents, r) is not None
+        except pywintypes.com_error:  # 참조하는 칸이 없음
+            own = False
+        if own:
+            tmp.Copy()
+            r.PasteSpecial(Paste=-4163)  # 값만 (오류 값도 그대로)
+            xl.CutCopyMode = False
+    finally:
+        tmp.Clear()
+    return own
 
 
 def inherit_format(t, out):
