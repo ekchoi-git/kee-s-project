@@ -10,7 +10,7 @@ from PySide6.QtCore import QByteArray, QObject, QPointF, QSize, Qt, QTimer, Sign
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QLinearGradient, QPainter, QPen, QPixmap, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
-                               QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QStyle, QStyledItemDelegate,
+                               QPlainTextEdit, QPushButton, QScrollArea, QStyle, QStyledItemDelegate,
                                QVBoxLayout, QWidget)
 
 from . import ai, classify
@@ -72,7 +72,6 @@ class FileDelegate(QStyledItemDelegate):
         p.setPen(QColor("#1f1f1d"))
         f = QFont(opt.font)
         f.setWeight(QFont.Medium)  # 콤보 칸은 굵게, 목록은 보통 굵기
-        f.setHintingPreference(QFont.PreferFullHinting)  # 목록은 별도 창이라 앱 글꼴의 힌팅을 못 물려받아 흐려진다
         p.setFont(f)
         p.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft,
                    opt.fontMetrics.elidedText(idx.data(), Qt.ElideMiddle, text_rect.width()))
@@ -176,6 +175,9 @@ QPushButton:hover { background: #f3f4f6; }
 #suggest { background: #1f1f1d; color: white; border: none; border-radius: 8px; padding: 7px 14px; font-size: 14px; }
 #suggest:hover { background: #3a3a37; }
 #suggest:disabled { background: #e8e6df; color: #888780; }
+#choice { background: white; color: #1f1f1d; border: 1px solid #dcdad3; border-radius: 8px; padding: 7px 14px; font-size: 14px; }
+#choice:hover { background: #f5f4ef; }
+#choice:disabled { color: #b4b2a9; border-color: #e8e6df; }
 """
 
 
@@ -479,7 +481,7 @@ class Window(QWidget):
         out = []
         for line in text.split("\n"):
             body = html.escape(line.strip())
-            if "임의 판단" in body:  # 셀리가 원본과 다르게 다룬 내용은 놓치지 않게 굵게
+            if "임의 판단" in body or body.startswith("⚠"):  # 셀리가 원본과 다르게 다룬 내용은 놓치지 않게 굵게
                 body = f"<b>{body}</b>"
             if line.lstrip().startswith(("•", "-", "→")) and body[:1] in "•-→":
                 out.append(f'<p style="margin:0 0 3px 14px; text-indent:-14px">{body}</p>')
@@ -487,8 +489,9 @@ class Window(QWidget):
                 out.append(f'<p style="margin:0 0 3px 0">{body or "&nbsp;"}</p>')
         return "".join(out)
 
-    def say(self, text, kind="bot", action=None):
-        """action=(버튼 글, 누르면 할 일): 말풍선 안 맨 아래 [제안] 버튼. 누르는 것 자체가 사용자 동의."""
+    def say(self, text, kind="bot", action=None, choices=None):
+        """action=(버튼 글, 누르면 할 일): 말풍선 안 맨 아래 [제안] 버튼. 누르는 것 자체가 사용자 동의.
+        choices=[(버튼 글, 누르면 할 일), …]: 나란히 놓인 선택 버튼(첫 번째가 진한 버튼). 하나를 누르면 모두 꺼진다."""
         self.empty.hide()  # 대화가 시작되면 예시 버튼은 숨김
         label = QLabel(self._rich(text))
         label.setTextFormat(Qt.RichText)
@@ -496,7 +499,7 @@ class Window(QWidget):
         label.setWordWrap(True)
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         bubble = label
-        if action:  # 말풍선 테두리를 바깥 틀로 옮기고 글과 버튼을 그 안에 함께 넣는다
+        if action or choices:  # 말풍선 테두리를 바깥 틀로 옮기고 글과 버튼을 그 안에 함께 넣는다
             bubble = QFrame()
             bubble.setObjectName("botbox")
             label.setObjectName("inner")
@@ -504,6 +507,22 @@ class Window(QWidget):
             box.setContentsMargins(12, 10, 12, 10)
             box.setSpacing(8)
             box.addWidget(label)
+        if choices:
+            line = QHBoxLayout()
+            line.setSpacing(8)
+            btns = []
+            for i, (name, fn) in enumerate(choices):
+                b = QPushButton(name)
+                b.setObjectName("suggest" if i == 0 else "choice")
+                b.setProperty("full", name)
+                b.setCursor(Qt.PointingHandCursor)
+                b.clicked.connect(lambda _=False, fn=fn: ([x.setEnabled(False) for x in btns], fn()))
+                line.addWidget(b)
+                btns.append(b)
+            line.addStretch(1)
+            box.addLayout(line)
+            self.suggest_btn = btns
+        if action:
             btn = QPushButton("[제안] " + action[0])
             btn.setObjectName("suggest")
             btn.setCursor(Qt.PointingHandCursor)
@@ -513,7 +532,7 @@ class Window(QWidget):
                 btn.setToolTip(action[2])
             btn.clicked.connect(lambda: (btn.setEnabled(False), action[1]()))
             box.addWidget(btn, 0, Qt.AlignLeft)
-            self.suggest_btn = btn
+            self.suggest_btn = [btn]
         fm = label.fontMetrics()
         self.bubbles.append((bubble, kind, max(fm.horizontalAdvance(l.strip()) for l in text.splitlines() or [""])))
         self.fit_bubbles()
@@ -732,6 +751,16 @@ class Window(QWidget):
     def finish(self, plan, t, before, cls, tail, retry=True):
         fix = None
         try:
+            changes = [] if plan.get("confirmed") else source_changes(t, plan)
+            if changes:  # 원본 수정은 지시가 있어도 실행 전에 대화 안 버튼으로 한 번 더 확인 (제안 버튼은 누른 것이 확인)
+                self.drop_suggestion()
+                go = {**plan, "confirmed": True}
+                self.say("⚠ 원본 표를 바꾸는 작업입니다. 진행할까요?\n"
+                         + "\n".join("• " + c for c in changes[:15])
+                         + (f"\n… 외 {len(changes) - 15}곳" if len(changes) > 15 else ""),
+                         choices=[("원본 바꾸기", lambda: self.finish(go, t, before, cls, tail, retry)),
+                                  ("취소", lambda: self.say("원본 수정을 취소했습니다. Excel은 바꾸지 않았습니다."))])
+                return
             text = self.apply(plan, t, before, cls)
             action = None
             if self.suggestion:  # 2차: 원본의 글자 숫자를 숫자로 바꾸자는 제안 (1차 결과는 원본 그대로 계산됨)
@@ -767,13 +796,6 @@ class Window(QWidget):
         if fingerprint(t.ws) != before:
             raise PlanError("AI가 해석하는 동안 시트 내용이 바뀌어 실행하지 않았습니다. 다시 요청해주세요.")
         self.drop_suggestion()  # 다른 작업을 하면 이전 제안은 더 이상 그 결과에 맞지 않음
-        changes = [] if plan.get("confirmed") else source_changes(t, plan)
-        if changes:  # 원본 수정은 지시가 있어도 실행 전에 한 번 더 확인 (제안 버튼은 누른 것이 확인)
-            ok = QMessageBox.question(self, "원본 수정 확인", "원본 표를 다음과 같이 바꿉니다. 진행할까요?\n\n"
-                                      + "\n".join("• " + c for c in changes[:15])
-                                      + (f"\n… 외 {len(changes) - 15}곳" if len(changes) > 15 else ""))
-            if ok != QMessageBox.Yes:
-                raise PlanError("원본 수정을 취소했습니다. Excel은 바꾸지 않았습니다.")
         self.set_busy("Excel에 적용하는 중…")
         QApplication.processEvents()
         u = Undo(t)
@@ -810,9 +832,9 @@ class Window(QWidget):
 
     def drop_suggestion(self):
         self.suggestion = None
-        if self.suggest_btn:
-            self.suggest_btn.setEnabled(False)
-            self.suggest_btn = None
+        for b in self.suggest_btn or []:
+            b.setEnabled(False)
+        self.suggest_btn = None
 
     def convert(self, ws, columns):
         """제안 버튼: 원본의 글자 숫자를 숫자로 바꾼다. 1차 결과의 수식은 다시 계산되고 피벗은 새로고침된다."""
@@ -860,8 +882,8 @@ def load_fonts():
 
 def main():
     app = QApplication([])
-    load_fonts()
     app.setStyleSheet(STYLE)
+    load_fonts()  # 스타일시트 뒤에: 먼저 하면 확인 창·목록 같은 별도 창의 힌팅이 기본값으로 돌아가 흐려짐
     win = Window()
     # Excel 옆에 나란히 보이도록 화면 오른쪽에 세로로 길게 붙인다
     geo = app.primaryScreen().availableGeometry()
