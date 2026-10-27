@@ -774,7 +774,11 @@ class Undo:
         self.ws.AutoFilterMode = False
         # shortcut: 작업 전 필터가 걸려 있었다면 그 조건은 복원 안 됨, 필터 위 작업 지원 시 보강
         self.ws.Cells.Clear()  # Delete는 다른 시트 수식의 참조를 #REF!로 깨뜨려서 Clear를 씀
-        self.wb.Worksheets(BACKUP).Cells.Copy(self.ws.Cells)
+        backup = self.wb.Worksheets(BACKUP)
+        # 필터가 걸린 채 사본을 떴으면 사본의 숨은 행은 Copy가 건너뛰어 되돌리면 보이던 행만 남으므로 모두 펼쳐서 붙임
+        backup.AutoFilterMode = False
+        backup.Rows.Hidden = False
+        backup.Cells.Copy(self.ws.Cells)
         for lo, name in zip(self.ws.ListObjects, self.tables):
             lo.Name = name  # 붙여넣으면 표 이름이 바뀌어 다른 수식의 표 참조가 깨지므로 원래 이름으로
         self.drop()
