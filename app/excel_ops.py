@@ -444,11 +444,30 @@ def execute(t, plan):
     except PlanError:
         raise
     except Exception as e:
-        # COM 오류 문구는 사용자가 읽을 수 없으므로 어느 단계였는지 알린다
-        info = getattr(e, "excepinfo", None)
-        code = info[5] if info and len(info) > 5 and info[5] else getattr(e, "hresult", None)
-        why = (info and info[2]) or (f"Excel 내부 오류 번호 0x{code & 0xFFFFFFFF:08X}" if isinstance(code, int) else str(e))
-        raise PlanError(f"{stage[0]} 단계에서 Excel이 작업을 거부했습니다. ({why})")
+        # COM 오류 문구는 사용자가 읽을 수 없으므로 어느 단계였는지와 뜻을 알린다
+        raise PlanError(f"{stage[0]} 단계에서 문제가 생겼습니다. {excel_error(e)}")
+
+
+BUSY_CODES = {0x800AC472, 0x8001010A, 0x80010001}  # Excel이 셀 편집·대화상자·계산 중이라 호출을 안 받음
+GONE_CODES = {0x80010108, 0x800706BA, 0x800706BE, 0x80010114}  # Excel이 닫혔거나 멈춰 연결이 끊김
+
+
+def excel_error(e):
+    """Excel(COM) 오류를 사용자가 할 일을 알 수 있는 문장으로. COM 오류가 아니면 원래 문구."""
+    if not isinstance(e, pywintypes.com_error):
+        return str(e)
+    info = e.excepinfo if isinstance(getattr(e, "excepinfo", None), tuple) else None
+    code = (info[5] if info and len(info) > 5 and info[5] else e.hresult) & 0xFFFFFFFF
+    if code in BUSY_CODES:
+        return "Excel이 다른 작업 중입니다. 셀 편집이나 열린 창을 끝낸 뒤 다시 요청해주세요."
+    if code in GONE_CODES:
+        return "Excel과 연결이 끊겼습니다. Excel이 닫혔거나 멈췄는지 확인하고 새로고침을 눌러주세요."
+    if code == 0x800A03EC:
+        return "Excel이 이 작업을 받아들이지 않았습니다(수식, 주소, 범위 문제)."
+    if code == 0x80070005:
+        return "Excel이 접근을 거부했습니다. 시트 보호나 읽기 전용 여부를 확인해주세요."
+    detail = info[2] if info and info[2] else ""
+    return f"Excel 내부 오류(0x{code:08X}){': ' + detail if detail else ''}. 같은 문제가 계속되면 이 번호를 알려주세요."
 
 
 def _execute(t, plan, stage):
@@ -657,7 +676,7 @@ class Undo:
             b.Name, b.Visible = BACKUP, 2  # 2 = 사용자에게 안 보이는 숨김
             self.ws.Activate()
         except Exception as e:
-            raise PlanError(f"되돌리기용 사본을 만들지 못해 실행하지 않았습니다: {e}")
+            raise PlanError(f"되돌리기용 사본을 만들지 못해 실행하지 않았습니다. {excel_error(e)}")
 
     def after(self):
         self.done = fingerprint(self.ws)

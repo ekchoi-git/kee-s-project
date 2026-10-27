@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLa
 
 from . import ai, classify
 from .excel_conn import ExcelError, active_sheet, list_files, read_summary
-from .excel_ops import (FormulaError, PlanError, Target, Undo, column_values, execute, fingerprint,
+from .excel_ops import (FormulaError, PlanError, Target, Undo, column_values, excel_error, execute, fingerprint,
                         source_changes, suggest_to_number, validate, write_classification)
 
 
@@ -527,7 +527,7 @@ class Window(QWidget):
             self.say(str(e), "err")
             return
         except Exception as e:
-            self.say(f"시트를 읽지 못했습니다. 셀 편집 중이면 끝낸 뒤 다시 보내주세요. ({e})", "err")
+            self.say(f"시트를 읽지 못했습니다. {excel_error(e)}", "err")
             return
         if self.planner is None:
             try:
@@ -616,7 +616,7 @@ class Window(QWidget):
         try:
             values = column_values(t, c["column"])
         except Exception as e:
-            self.say(f"'{c['column']}' 열을 읽지 못했습니다: {e}", "err")
+            self.say(f"'{c['column']}' 열을 읽지 못했습니다. {excel_error(e)}", "err")
             return
         self.set_busy(f"'{c['column']}' 열의 설명을 OpenAI로 보내 분류하는 중…")
         client = self.planner.client
@@ -665,14 +665,14 @@ class Window(QWidget):
         except PlanError as e:
             self.say(str(e), "err")
         except Exception as e:  # 예상 못 한 Excel 오류에도 창이 '적용 중'에 멈추지 않게
-            self.say(f"Excel 작업 중 오류가 났습니다: {e}", "err")
+            self.say(excel_error(e), "err")
         finally:
             self.set_busy("")
         if fix:
             try:
                 info, before = t.info(), fingerprint(t.ws)
             except Exception as e2:
-                self.say(f"시트를 다시 읽지 못해 재시도하지 않았습니다: {e2}", "err")
+                self.say(f"시트를 다시 읽지 못해 재시도하지 않았습니다. {excel_error(e2)}", "err")
                 return
             self.ask(fix, t, info, before, retry=True)
 
@@ -710,8 +710,8 @@ class Window(QWidget):
                 u.undo(force=True)
                 state = "원래 상태로 되돌렸습니다."
             except Exception as e2:
-                state = f"자동 복구도 실패했습니다({e2}). 파일을 저장하지 말고 닫은 뒤 다시 여는 것을 권합니다."
-            reason = str(e) if isinstance(e, PlanError) else f"Excel 실행 오류: {e}"
+                state = f"자동 복구도 실패했습니다({excel_error(e2)}). 파일을 저장하지 말고 닫은 뒤 다시 여는 것을 권합니다."
+            reason = str(e) if isinstance(e, PlanError) else excel_error(e)
             raise (FormulaError if isinstance(e, FormulaError) else PlanError)(f"{reason}\n→ {state}")
         finally:
             t.xl.ScreenUpdating = True
@@ -737,7 +737,7 @@ class Window(QWidget):
             t = Target(ws)
             before = fingerprint(ws)
         except Exception as e:
-            self.say(f"시트를 다시 읽지 못했습니다: {e}", "err")
+            self.say(f"시트를 다시 읽지 못했습니다. {excel_error(e)}", "err")
             return
         self.finish(plan, t, before, None, "")
 
@@ -751,7 +751,7 @@ class Window(QWidget):
             self.say(str(e), "err")
             return
         except Exception as e:
-            self.say(f"되돌리기 중 Excel 오류: {e}", "err")
+            self.say(f"되돌리지 못했습니다. {excel_error(e)}", "err")
             return
         self.last = None
         if self.planner:
