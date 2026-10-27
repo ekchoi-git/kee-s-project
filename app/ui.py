@@ -72,6 +72,7 @@ class FileDelegate(QStyledItemDelegate):
         p.setPen(QColor("#1f1f1d"))
         f = QFont(opt.font)
         f.setWeight(QFont.Medium)  # 콤보 칸은 굵게, 목록은 보통 굵기
+        f.setHintingPreference(QFont.PreferFullHinting)  # 목록은 별도 창이라 앱 글꼴의 힌팅을 못 물려받아 흐려진다
         p.setFont(f)
         p.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft,
                    opt.fontMetrics.elidedText(idx.data(), Qt.ElideMiddle, text_rect.width()))
