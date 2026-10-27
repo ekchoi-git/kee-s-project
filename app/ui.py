@@ -136,17 +136,17 @@ class Bridge(QObject):
     classified = Signal(object, object)
 
 STYLE = """
-QWidget { font-family: 'Pretendard', 'Malgun Gothic'; font-size: 15px; background: white; }
-#title { font-size: 19px; font-weight: bold; color: #1f1f1d; }
+QWidget { font-family: 'Pretendard', 'Malgun Gothic'; font-size: 11pt; background: white; }
+#title { font-size: 14pt; font-weight: bold; color: #1f1f1d; }
 #head { border-bottom: 1px solid #e8e6df; }
-#hello { font-size: 17px; color: #1f1f1d; }
-#hint { color: #888780; font-size: 14px; }
+#hello { font-size: 12pt; color: #1f1f1d; }
+#hint { color: #888780; font-size: 10pt; }
 #pill { border: 1px solid #dcdad3; border-radius: 17px; padding: 7px 16px; min-height: 20px; background: white; color: #1f1f1d; }
 #pill:hover { background: #f5f4ef; }
 #busy { color: #b4532a; padding: 0 4px; }
-#dot { color: #3b9a3b; font-size: 13px; background: transparent; }
+#dot { color: #3b9a3b; font-size: 9pt; background: transparent; }
 #dot[bad="true"] { color: #c0392b; }
-#target { color: #5f5e5a; font-size: 14px; background: transparent; }
+#target { color: #5f5e5a; font-size: 10pt; background: transparent; }
 #target[bad="true"] { color: #a32d2d; }
 #me { background: #f1efe8; color: #1f1f1d; border-radius: 14px; padding: 8px 12px; }
 #bot { background: white; color: #1f1f1d; border: 1px solid #e8e6df; border-radius: 14px; padding: 10px 12px; }
@@ -159,10 +159,10 @@ QPushButton:hover { background: #f3f4f6; }
 #ctx { background: transparent; }
 #ctx QComboBox { border: none; background: transparent; padding: 2px 4px; font-weight: bold; color: #1f1f1d; }
 #filelist { background: white; border: 1px solid #e8e6df; border-radius: 14px; padding: 4px; outline: 0; }
-#textbtn { border: none; background: transparent; color: #5f5e5a; padding: 2px 6px; font-size: 14px; }
+#textbtn { border: none; background: transparent; color: #5f5e5a; padding: 2px 6px; font-size: 10pt; }
 #textbtn:hover { color: #1f1f1d; background: transparent; }
 #inputbox { border: 1px solid #dcdad3; border-radius: 16px; background: white; }
-#entry { border: none; padding: 6px 8px; background: transparent; color: #1f1f1d; font-size: 16px; }
+#entry { border: none; padding: 6px 8px; background: transparent; color: #1f1f1d; font-size: 11pt; }
 #sendicon { background: #1f1f1d; border: none; border-radius: 16px; padding: 0; }
 #sendicon:hover { background: #3a3a37; }
 #sendicon:disabled { background: #b4b2a9; }
@@ -172,10 +172,10 @@ QPushButton:hover { background: #f3f4f6; }
 #apikey:hover { color: #1f1f1d; background: transparent; }
 #botbox { background: white; border: 1px solid #e8e6df; border-radius: 14px; }
 #inner { background: transparent; color: #1f1f1d; border: none; padding: 0; }
-#suggest { background: #1f1f1d; color: white; border: none; border-radius: 8px; padding: 7px 14px; font-size: 14px; }
+#suggest { background: #1f1f1d; color: white; border: none; border-radius: 8px; padding: 7px 14px; font-size: 10pt; }
 #suggest:hover { background: #3a3a37; }
 #suggest:disabled { background: #e8e6df; color: #888780; }
-#choice { background: white; color: #1f1f1d; border: 1px solid #dcdad3; border-radius: 8px; padding: 7px 14px; font-size: 14px; }
+#choice { background: white; color: #1f1f1d; border: 1px solid #dcdad3; border-radius: 8px; padding: 7px 14px; font-size: 10pt; }
 #choice:hover { background: #f5f4ef; }
 #choice:disabled { color: #b4b2a9; border-color: #e8e6df; }
 """
