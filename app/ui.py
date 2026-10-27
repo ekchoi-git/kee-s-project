@@ -96,17 +96,17 @@ class Bridge(QObject):
     classified = Signal(object, object)
 
 STYLE = """
-QWidget { font-family: 'Pretendard', 'Malgun Gothic'; font-size: 13px; background: white; }
-#title { font-size: 17px; font-weight: bold; color: #1f1f1d; }
+QWidget { font-family: 'Pretendard', 'Malgun Gothic'; font-size: 15px; background: white; }
+#title { font-size: 19px; font-weight: bold; color: #1f1f1d; }
 #head { border-bottom: 1px solid #e8e6df; }
-#hello { font-size: 15px; color: #1f1f1d; }
-#hint { color: #888780; font-size: 12px; }
+#hello { font-size: 17px; color: #1f1f1d; }
+#hint { color: #888780; font-size: 14px; }
 #pill { border: 1px solid #dcdad3; border-radius: 17px; padding: 7px 16px; min-height: 20px; background: white; color: #1f1f1d; }
 #pill:hover { background: #f5f4ef; }
 #busy { color: #b4532a; padding: 0 4px; }
-#dot { color: #3b9a3b; font-size: 11px; background: transparent; }
+#dot { color: #3b9a3b; font-size: 13px; background: transparent; }
 #dot[bad="true"] { color: #c0392b; }
-#target { color: #5f5e5a; font-size: 12px; background: transparent; }
+#target { color: #5f5e5a; font-size: 14px; background: transparent; }
 #target[bad="true"] { color: #a32d2d; }
 #me { background: #f1efe8; color: #1f1f1d; border-radius: 14px; padding: 8px 12px; }
 #bot { background: white; color: #1f1f1d; border: 1px solid #e8e6df; border-radius: 14px; padding: 10px 12px; }
@@ -118,10 +118,10 @@ QPushButton:hover { background: #f3f4f6; }
 #composer { border: 1px solid #dcdad3; border-radius: 16px; background: #f5f4ef; }
 #ctx { background: transparent; }
 #ctx QComboBox { border: none; background: transparent; padding: 2px 4px; font-weight: bold; color: #1f1f1d; }
-#textbtn { border: none; background: transparent; color: #5f5e5a; padding: 2px 6px; font-size: 12px; }
+#textbtn { border: none; background: transparent; color: #5f5e5a; padding: 2px 6px; font-size: 14px; }
 #textbtn:hover { color: #1f1f1d; background: transparent; }
 #inputbox { border: 1px solid #dcdad3; border-radius: 16px; background: white; }
-#entry { border: none; padding: 6px 8px; background: transparent; color: #1f1f1d; font-size: 14px; }
+#entry { border: none; padding: 6px 8px; background: transparent; color: #1f1f1d; font-size: 16px; }
 #sendicon { background: #1f1f1d; border: none; border-radius: 16px; padding: 0; }
 #sendicon:hover { background: #3a3a37; }
 #sendicon:disabled { background: #b4b2a9; }
@@ -132,7 +132,7 @@ QPushButton:hover { background: #f3f4f6; }
 #apikey:hover { background: #2531c4; }
 #botbox { background: white; border: 1px solid #e8e6df; border-radius: 14px; }
 #inner { background: transparent; color: #1f1f1d; border: none; padding: 0; }
-#suggest { background: #1f1f1d; color: white; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; }
+#suggest { background: #1f1f1d; color: white; border: none; border-radius: 8px; padding: 7px 14px; font-size: 14px; }
 #suggest:hover { background: #3a3a37; }
 #suggest:disabled { background: #e8e6df; color: #888780; }
 """
@@ -807,6 +807,7 @@ def load_fonts():
     # 힌팅: 획을 픽셀 경계에 맞춰 작은 글자도 또렷하게(끄면 13px에서 흐려 보임). TTF여야 효과가 큼
     f = QApplication.font()
     f.setHintingPreference(QFont.PreferFullHinting)
+    f.setWeight(QFont.Medium)  # 본문 기본 굵기: Regular는 작은 글자에서 가늘어 보임
     QApplication.setFont(f)
 
 
