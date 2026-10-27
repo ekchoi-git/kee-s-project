@@ -145,6 +145,8 @@ def source_changes(t, plan):
         if hits:
             lines.append(f"{c} 열 글자로 저장된 숫자 {len(hits)}칸을 숫자로 바꿈 ({spots(col_letter(t.region.Column + j), [r for r, _ in hits])})")
     if not plan["new_sheet"]:
+        if rebuilds(t, plan):
+            lines.append(f"기존 표 {t.region.Address.replace('$', '')}를 비우고 새로 씀(수식 결과 표라 남은 칸이 새 결과를 막음)")
         for w in plan["writes"]:
             if ADDRESS.match(w["address"].upper()) and t.xl.Intersect(t.ws.Range(w["address"]), t.region) is not None:
                 lines.append(f"{w['address']} ← {w['content'][:60]}")
@@ -153,6 +155,13 @@ def source_changes(t, plan):
             and t.ws.Cells(t.region.Row, _col_index(c["output"])).Value2 != f"{c['column']} 분류":
         lines.append(f"{c['output'].upper()}열을 분류 결과로 덮어씀")
     return lines
+
+
+def rebuilds(t, plan):
+    """원본 수정으로 수식 결과(펼쳐진 배열) 표 안에 새로 쓰면 표를 다시 짜는 것: 남은 옛 칸이 새 결과를 막아 #SPILL이 나므로 먼저 비운다."""
+    return bool(plan["edit_source"] and not plan["new_sheet"] and t.spills() and any(
+        ADDRESS.match(w["address"].upper()) and t.xl.Intersect(t.ws.Range(w["address"]), t.region) is not None
+        for w in plan["writes"]))
 
 
 def _col_index(letters):
@@ -542,6 +551,10 @@ def _execute(t, plan, stage):
                 elif not plan["overwrite"] and xl.WorksheetFunction.CountA(r):
                     raise PlanError(f"{w['address']}에 이미 데이터가 있어 덮어쓰지 않았습니다. 덮어쓰려면 그렇게 말씀해주세요.")
         dyn = dynamic_arrays(ws)
+        rebuilt = out_ws is ws and rebuilds(t, plan)
+        if rebuilt:
+            t.region.ClearContents()
+            done.append(f"기존 표 {t.region.Address.replace('$', '')}를 비우고 새로 씀")
         for w, r in zip(plan["writes"], ranges):
             if w["content"].startswith("="):
                 if len(w["content"]) > 8000:  # Excel 수식 길이 한도 8192자
@@ -597,7 +610,8 @@ def _execute(t, plan, stage):
         if plan["edit_source"]:
             done += [f"원본 수정: {w['address']} ← {w['content'][:60]}" for w, r in zip(plan["writes"], ranges)
                      if out_ws is ws and xl.Intersect(r, t.region) is not None]
-        done += assumption_notes(t, [w["content"] for w in plan["writes"] if w["content"].startswith("=")], out_ws is ws)
+        if not rebuilt:  # 비운 옛 표의 빈 칸을 원본 문제로 적지 않게
+            done += assumption_notes(t, [w["content"] for w in plan["writes"] if w["content"].startswith("=")], out_ws is ws)
 
     stage[0] = "표시 형식"
     for f in plan["formats"]:
