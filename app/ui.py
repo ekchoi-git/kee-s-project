@@ -19,6 +19,8 @@ from .excel_ops import (FormulaError, PlanError, Target, Undo, column_values, ex
 
 
 ARROW_UP = '<path d="M12 5l0 14"/><path d="M18 11l-6 -6"/><path d="M6 11l6 -6"/>'
+KEY = ('<path d="M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0z"/>'
+       '<path d="M15 9h.01"/>')
 ARROW_BACK_UP = '<path d="M9 14l-4 -4l4 -4"/><path d="M5 10h11a4 4 0 1 1 0 8h-1"/>'
 
 
@@ -127,9 +129,8 @@ QPushButton:hover { background: #f3f4f6; }
 #sendicon:disabled { background: #b4b2a9; }
 #undoicon { border: none; border-radius: 16px; padding: 0; background: transparent; }
 #undoicon:hover { background: #f1efe8; }
-#apikey { background: #2f3ce8; color: white; border: none; border-radius: 14px; padding: 6px 18px; min-height: 16px;
-          font-weight: bold; letter-spacing: 1px; }
-#apikey:hover { background: #2531c4; }
+#apikey { border: none; background: transparent; color: #5f5e5a; padding: 4px 6px; }
+#apikey:hover { color: #1f1f1d; background: transparent; }
 #botbox { background: white; border: 1px solid #e8e6df; border-radius: 14px; }
 #inner { background: transparent; color: #1f1f1d; border: none; padding: 0; }
 #suggest { background: #1f1f1d; color: white; border: none; border-radius: 8px; padding: 7px 14px; font-size: 14px; }
@@ -276,8 +277,9 @@ class Window(QWidget):
         # 머리: 제목 + API KEY
         title = QLabel("셀리")
         title.setObjectName("title")
-        self.key_btn = QPushButton("API KEY")
+        self.key_btn = QPushButton("API 키")
         self.key_btn.setObjectName("apikey")
+        self.key_btn.setIcon(line_icon(KEY, "#5f5e5a", "#d3d1c7", 16))
         self.key_btn.setCursor(Qt.PointingHandCursor)
         self.key_btn.clicked.connect(self.edit_key)
         head = QFrame()
