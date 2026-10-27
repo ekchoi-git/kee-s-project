@@ -34,6 +34,11 @@ PLAN_SCHEMA = _obj({
     "sorts": {"type": "array", "items": _obj({"column": _str, "descending": {"type": "boolean"}})},
     "new_sheet": _str,
     "formats": {"type": "array", "items": _obj({"address": _str, "format": _str})},
+    "highlights": {"type": "array", "items": _obj({
+        "address": _str,
+        "formula": _str,
+        "color": {"type": "string", "enum": ["yellow", "red", "green", "blue", "orange", "gray"]},
+    })},
     "writes": {"type": "array", "items": _obj({"address": _str, "content": _str})},
     "pivot": {"anyOf": [{"type": "null"}, _obj({
         "rows": _strs,
@@ -66,6 +71,7 @@ SYSTEM = """너는 Windows Excel 작업 도우미의 계획 담당이다. 사용
 - 원본·표를 고쳐도 되는지 허락을 묻는 질문은 하지 않는다. 사용자가 표 자체를 바꾸라고 하면(행·열 바꾸기, 정렬 순서 변경, 값 수정 등) edit_source=true로 바로 계획한다. 원본을 바꾸는 계획은 실행 전에 프로그램이 [원본 바꾸기] 버튼으로 확인받는다. action "ask"는 대상·필요한 값을 정할 수 없을 때만 쓴다.
 - 전년 대비 증가율처럼 비교할 이전 값이 없는 첫 항목(첫 해 등)은 0이 아니라 빈칸("")으로 둔다. 이전 값이 0이거나 비어 있을 때도 빈칸.
 - formats: 숫자를 다르게 '보이게' 하는 요청(예: "1000원 단위로 표기", "천원 단위", "백만 단위", "소수점 둘째 자리", "% 로")은 값을 바꾸지 않고 표시 형식으로 한다. address는 그 칸 범위(원본 표 안이어도 된다, 값·수식은 그대로), format은 Excel 영문 형식 코드: 1,000 단위 "#,##0,", 1,000,000 단위 "#,##0,,", 소수 둘째 자리 "#,##0.00", 백분율 "0.0%". 이때 writes로 새 표를 만들지 않고 edit_source는 false다. summary에 '실제 값은 그대로이고 보이는 형식만 바뀐다'고 적는다. 표시 형식 요청이 아니면 빈 배열.
+- highlights: 조건에 맞는 칸을 색으로 표시하라는 요청(예: "숫자가 아닌 칸을 노란색으로", "100 이상은 빨간색으로")은 조건부 서식으로 한다. address는 색을 칠할 범위(원본 표 안이어도 된다, 값은 그대로, 머리글 행은 빼고 데이터 행만), formula는 그 범위 왼쪽 위 칸 기준 상대 참조로 쓴 TRUE/FALSE 수식(예: address "C2:H501"이면 C2를 기준으로 =AND(C2<>"",NOT(ISNUMBER(C2)))), color는 색 이름. 한 행 전체를 칠하려면 열만 고정한다(예: address "A2:H501", formula =$D2>=100). 이때 edit_source는 false, writes로 표시용 표를 따로 만들지 않는다. 색 표시 요청이 아니면 빈 배열.
 - to_number: 사용자가 글자로 저장된 숫자를 숫자로 바꾸라고 하면 그 열 이름들(edit_source=true 필요), 아니면 빈 배열. 바꿀 값은 프로그램이 원본에서 읽어 바꾸므로 writes로 만들지 않는다.
 - 여러 칸에 다른 글자를 쓰려면(머리글 등) 칸마다 따로 쓰거나, 첫 칸 주소에 탭으로 구분한 한 줄을 준다(예: address "A1", content "회사명\\t금액").
 - 원본 행을 그대로 뽑아 올 때(FILTER 등) 빈 칸이 0으로 보이지 않게 원본 범위를 IF(범위="","",범위)로 감싼다. 검증된 방식: =FILTER(IF('시트'!$A$2:$G$501="","",'시트'!$A$2:$G$501), 조건).

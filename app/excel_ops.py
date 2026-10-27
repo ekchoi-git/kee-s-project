@@ -54,8 +54,15 @@ def validate(plan, headers):
             bad.append(f"'{f['address']}'는 이 시트의 셀 주소가 아닙니다.")
         if not f["format"] or len(f["format"]) > 60:
             bad.append(f"'{f['format']}'는 표시 형식이 아닙니다.")
+    for h in plan["highlights"]:
+        if not ADDRESS.match(h["address"].upper()):
+            bad.append(f"'{h['address']}'는 이 시트의 셀 주소가 아닙니다.")
+        if not h["formula"].startswith("=") or len(h["formula"]) > 255:  # 조건부 서식 수식 한도 255자
+            bad.append(f"'{h['formula'][:60]}'는 조건부 서식 수식이 아닙니다.")
+        if BLOCKED_FN.search(h["formula"]) or EXTERNAL.search(h["formula"]):
+            bad.append(f"'{h['formula'][:60]}'는 외부 연결·다른 파일이 필요한 수식이라 실행하지 않습니다.")
     if plan["action"] == "change" and not (plan["filters"] or plan["sorts"] or plan["writes"] or plan["pivot"] or plan["classify"]
-                                           or plan["to_number"] or plan["formats"]):
+                                           or plan["to_number"] or plan["formats"] or plan["highlights"]):
         bad.append("실행할 작업이 없습니다.")
     return bad
 
@@ -692,6 +699,10 @@ def _execute(t, plan, stage):
         ws.Range(f["address"]).NumberFormat = f["format"]  # 값·수식은 그대로, 보이는 모양만 바뀜
         done.append(f"표시 형식: {f['address']} → {f['format']} (실제 값은 그대로)")
 
+    stage[0] = "색 표시"
+    for h in plan["highlights"]:
+        done += highlight(t, h)
+
     stage[0] = "피벗"
     if plan["pivot"]:
         p = plan["pivot"]
@@ -710,6 +721,55 @@ def _execute(t, plan, stage):
         done.append(f"피벗: 새 시트 '{name}' (행 {', '.join(p['rows']) or '-'} / 열 {', '.join(p['columns']) or '-'})")
         done += pivot_notes(t, p)
     return done
+
+
+COLORS = {"yellow": 0x99FFFF, "red": 0x9999FF, "green": 0x99E6B3, "blue": 0xF7D6B4, "orange": 0x80C0FF, "gray": 0xD9D9D9}  # 연한 색 (BGR)
+COLOR_NAMES = {"yellow": "노란색", "red": "빨간색", "green": "초록색", "blue": "파란색", "orange": "주황색", "gray": "회색"}
+
+
+def highlight(t, h):
+    """조건부 서식: 수식이 TRUE인 칸에 배경색. 값은 그대로. 칠해질 칸을 미리 계산해 칸 수·위치를 알린다
+    (기준 칸이 어긋난 수식은 오류 없이 엉뚱한 칸을 칠하므로 사용자가 위치로 확인하게)."""
+    ws, xl, f = t.ws, t.xl, h["formula"]
+    r = ws.Range(h["address"])
+    used = ws.UsedRange
+    c0 = used.Column + used.Columns.Count + 1
+    tmp = ws.Range(ws.Cells(r.Row, c0), ws.Cells(r.Row + r.Rows.Count - 1, c0 + r.Columns.Count - 1))
+    try:
+        try:
+            tmp.Formula = f  # 첫 칸 기준 상대 참조라 다른 열에 써도 조건부 서식과 같은 칸을 읽음
+        except pywintypes.com_error as e:
+            raise FormulaError(f"Excel이 {h['address']} 색 표시 조건 수식을 받아들이지 않았습니다.\n  {f[:200]}") from e
+        xl.Calculate()
+        v = tmp.Value2
+    finally:
+        tmp.Clear()
+    v = v if isinstance(v, tuple) else ((v,),)
+    errs = errors_in(v)
+    if errs and sum(errs.values()) == r.Count:
+        raise FormulaError(f"색 표시 조건 수식이 모든 칸에서 오류를 냈습니다({', '.join(errs)}).\n  {h['address']} {f[:200]}")
+    hits = {}
+    for i, row in enumerate(v):
+        for j, x in enumerate(row):
+            if x is True or (type(x) in (int, float) and x and not errors_in(x)):
+                hits.setdefault(r.Column + j, []).append(r.Row + i)
+    # A1 수식은 범위 첫 칸이 아니라 '현재 선택 칸' 기준으로 해석되므로, 첫 칸 기준 R1C1로 바꿔 R1C1 모드에서 넣음
+    rc = xl.ConvertFormula(f, 1, -4150, None, r.Cells(1, 1))
+    style = xl.ReferenceStyle
+    xl.ReferenceStyle = -4150
+    try:
+        fc = r.FormatConditions.Add(Type=2, Formula1=rc)  # 2 = 수식 조건
+    finally:
+        xl.ReferenceStyle = style
+    fc.Interior.Color = COLORS[h["color"]]
+    n = sum(len(rows) for rows in hits.values())
+    out = [f"색 표시: {h['address']} 중 조건 {f} 에 맞는 {n}칸을 {COLOR_NAMES[h['color']]}으로 (조건부 서식, 값은 그대로)"]
+    out += [f"  {col_letter(c)}열 {len(rows)}칸: {spots(col_letter(c), rows)}" for c, rows in list(hits.items())[:6]]
+    if len(hits) > 6:
+        out.append(f"  외 {len(hits) - 6}개 열")
+    if not n:
+        out.append("⚠ 지금은 조건에 맞는 칸이 없습니다. 조건이 맞는지 확인해주세요.")
+    return out
 
 
 def in_place(ws, xl, r, formula):
