@@ -10,7 +10,8 @@ from PySide6.QtCore import QByteArray, QObject, QPointF, QSize, Qt, QTimer, Sign
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QLinearGradient, QPainter, QPen, QPixmap, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
-                               QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
+                               QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QStyle, QStyledItemDelegate,
+                               QVBoxLayout, QWidget)
 
 from . import ai, classify
 from .excel_conn import ExcelError, active_sheet, list_files, read_summary
@@ -21,6 +22,9 @@ from .excel_ops import (FormulaError, PlanError, Target, Undo, column_values, ex
 ARROW_UP = '<path d="M12 5l0 14"/><path d="M18 11l-6 -6"/><path d="M6 11l6 -6"/>'
 KEY = ('<path d="M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0z"/>'
        '<path d="M15 9h.01"/>')
+SHEET = ('<path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>'
+         '<path d="M8 11h8v7h-8z"/><path d="M8 15h8"/><path d="M11 11v7"/>')
+CHECK = '<path d="M5 12l5 5l10 -10"/>'
 ARROW_BACK_UP = '<path d="M9 14l-4 -4l4 -4"/><path d="M5 10h11a4 4 0 1 1 0 8h-1"/>'
 
 
@@ -38,6 +42,40 @@ def line_icon(paths, color, disabled_color, size=20):
         pm.setDevicePixelRatio(2)
         icon.addPixmap(pm, mode)
     return icon
+
+
+class FileDelegate(QStyledItemDelegate):
+    """파일 목록 한 줄: 엑셀 아이콘 + 파일명, 고른 파일에는 체크, 마우스 올린 줄은 둥근 회색 배경."""
+
+    def __init__(self, combo):
+        super().__init__(combo)
+        self.combo = combo
+        self.sheet = line_icon(SHEET, "#3b9a3b", "#3b9a3b", 18).pixmap(18, 18)
+        self.check = line_icon(CHECK, "#b4532a", "#b4532a", 16).pixmap(16, 16)
+
+    def sizeHint(self, opt, idx):
+        s = super().sizeHint(opt, idx)
+        return QSize(s.width() + 64, 38)
+
+    def paint(self, p, opt, idx):
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing)
+        r = opt.rect.adjusted(2, 2, -2, -2)
+        if opt.state & (QStyle.State_MouseOver | QStyle.State_Selected):
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor("#f1efe8"))
+            p.drawRoundedRect(r, 10, 10)
+        p.drawPixmap(r.left() + 10, r.center().y() - 8, self.sheet)
+        if idx.row() == self.combo.currentIndex():
+            p.drawPixmap(r.right() - 26, r.center().y() - 7, self.check)
+        text_rect = r.adjusted(38, 0, -36, 0)
+        p.setPen(QColor("#1f1f1d"))
+        f = QFont(opt.font)
+        f.setWeight(QFont.Medium)  # 콤보 칸은 굵게, 목록은 보통 굵기
+        p.setFont(f)
+        p.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft,
+                   opt.fontMetrics.elidedText(idx.data(), Qt.ElideMiddle, text_rect.width()))
+        p.restore()
 
 
 class KeyDialog(QDialog):
@@ -120,6 +158,7 @@ QPushButton:hover { background: #f3f4f6; }
 #composer { border: 1px solid #dcdad3; border-radius: 16px; background: #f5f4ef; }
 #ctx { background: transparent; }
 #ctx QComboBox { border: none; background: transparent; padding: 2px 4px; font-weight: bold; color: #1f1f1d; }
+#filelist { background: white; border: 1px solid #e8e6df; border-radius: 14px; padding: 4px; outline: 0; }
 #textbtn { border: none; background: transparent; color: #5f5e5a; padding: 2px 6px; font-size: 14px; }
 #textbtn:hover { color: #1f1f1d; background: transparent; }
 #inputbox { border: 1px solid #dcdad3; border-radius: 16px; background: white; }
@@ -336,6 +375,11 @@ class Window(QWidget):
         self.file_combo = QComboBox()
         self.file_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.file_combo.currentIndexChanged.connect(lambda: self.update_sheet(force=True))
+        self.file_combo.setItemDelegate(FileDelegate(self.file_combo))
+        self.file_combo.view().setObjectName("filelist")
+        popup = self.file_combo.view().window()  # 둥근 모서리 바깥이 네모로 비치지 않게 창 자체를 투명하게
+        popup.setWindowFlags(popup.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+        popup.setAttribute(Qt.WA_TranslucentBackground)
         refresh = QPushButton("새로고침")
         refresh.setObjectName("textbtn")
         refresh.setCursor(Qt.PointingHandCursor)
