@@ -362,6 +362,9 @@ class Window(QWidget):
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
         self.scroll.setWidget(body)
+        # 새 말풍선은 높이 계산이 끝난 뒤에야 스크롤 범위가 늘어나므로, 범위가 늘 때마다 맨 아래로 내린다
+        bar = self.scroll.verticalScrollBar()
+        bar.rangeChanged.connect(lambda _lo, hi: bar.setValue(hi))
 
         # 작업 중 멘트
         self.busy = ShimmerLabel()
@@ -541,7 +544,6 @@ class Window(QWidget):
             row.addStretch(1)
         row.addWidget(bubble, 0 if kind == "me" else 1)  # 답변 말풍선은 최대 폭까지 늘어남
         self.chat.addLayout(row)
-        QTimer.singleShot(0, lambda: self.scroll.verticalScrollBar().setValue(self.scroll.verticalScrollBar().maximum()))
 
     def fit_bubbles(self):
         """말풍선 폭을 창 폭에 맞춘다. 줄바꿈 글상자는 Qt가 폭을 좁게 잡으므로 글이 들어갈 만큼은 넓힌다."""
