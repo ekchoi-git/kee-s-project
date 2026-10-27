@@ -337,6 +337,7 @@ class Target:
             f"데이터 범위: {r.Address} (머리글 {first}행, 데이터 {first + 1}~{last}행, {last - first}행)",
             *([f"합계 줄: {self.total_row}행 (표 바로 아래 붙은 합계라 데이터 범위에 넣지 않음)"] if self.total_row else []),
             *[f"이 표는 수식 결과(펼쳐진 배열): {a}: {f}  → {rng}에 펼쳐짐" for a, f, rng in self.spills()],
+            *self.column_formulas(),
             "열: " + ", ".join(cols),
             f"표 바로 아래 행: {last + 1}행, 표 바로 오른쪽 열: {col_letter(r.Column + r.Columns.Count)}열 (합계 줄·합계 열은 여기에)",
             f"결과 시작 열: {free} (따로 떨어진 결과를 놓을 때만, 그 왼쪽은 사용 중)",
@@ -345,6 +346,23 @@ class Target:
             "샘플 5행:", *sample,
             *self.outside(),
         ])
+
+    def column_formulas(self):
+        """칸마다 채운 수식 열(펼쳐진 배열이 아닌 것)의 첫 데이터 행 수식. 이게 없으면 AI는 '구매비 합계'가
+        어느 원본 열에서 계산되는지 몰라 표를 옮기거나 다시 만들지 못하고 원본 열을 되묻는다."""
+        r, row = self.region, self.region.Row + 1
+        if r.Rows.Count < 2:
+            return []
+        dyn = dynamic_arrays(self.ws)
+        lines = []
+        for j in range(r.Columns.Count):
+            cell = self.ws.Cells(row, r.Column + j)
+            f = str(cell.Formula2 if dyn else cell.Formula)
+            if not f.startswith("=") or (dyn and cell.HasSpill):
+                continue  # 펼쳐진 배열의 시작 칸은 spills()가 이미 알려줌
+            below = r.Rows.Count > 2 and str(self.ws.Cells(row + 1, r.Column + j).Formula).startswith("=")
+            lines.append(f"{col_letter(r.Column + j)}{row}: {f[:300]}" + ("  (아래 행에도 같은 식으로 채워져 있음)" if below else ""))
+        return ["표 열의 수식(첫 데이터 행):", *lines] if lines else []
 
     def quality(self):
         """열별 빈 칸·글자로 저장된 숫자 수. AI가 이를 모르면 집계에서 그 행을 조용히 빠뜨린다."""
