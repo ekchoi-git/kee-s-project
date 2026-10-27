@@ -5,7 +5,7 @@ import threading
 import time
 
 from PySide6.QtCore import QByteArray, QObject, QPointF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap, QTextCursor
+from PySide6.QtGui import QColor, QIcon, QLinearGradient, QPainter, QPen, QPixmap, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
@@ -178,6 +178,43 @@ class ChatInput(QPlainTextEdit):
         super().keyPressEvent(e)
 
 
+class ShimmerLabel(QLabel):
+    """작업 중 문구: 밝은 띠가 글자 위를 왼쪽→오른쪽으로 지나가며 반짝인다(Claude Code 방식). 글이 비면 멈춘다."""
+    PERIOD = 1.8  # 띠가 한 번 지나가는 초
+    BASE, SHINE = QColor("#b4532a"), QColor("#f0b48f")
+
+    def __init__(self):
+        super().__init__("")
+        self.t0 = time.monotonic()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update)
+
+    def setText(self, text):
+        super().setText(text)
+        if text and not self.timer.isActive():
+            self.t0 = time.monotonic()
+            self.timer.start(30)
+        elif not text:
+            self.timer.stop()
+
+    def paintEvent(self, e):
+        if not self.text():
+            return
+        p = QPainter(self)
+        p.setFont(self.font())
+        box = self.rect().adjusted(4, 0, -4, 0)  # 스타일의 좌우 여백 4px
+        w = p.fontMetrics().horizontalAdvance(self.text())
+        band = max(40.0, w * 0.25)
+        phase = ((time.monotonic() - self.t0) / self.PERIOD) % 1
+        x = box.left() - band + phase * (w + 2 * band)  # 글자 왼쪽 밖에서 오른쪽 밖까지
+        g = QLinearGradient(x - band / 2, 0, x + band / 2, 0)
+        g.setColorAt(0, self.BASE)
+        g.setColorAt(0.5, self.SHINE)
+        g.setColorAt(1, self.BASE)
+        p.setPen(QPen(g, 1))
+        p.drawText(box, int(Qt.AlignLeft | Qt.AlignVCenter), self.text())
+
+
 class Spinner(QWidget):
     """작업 중 아이콘: 60도씩 엇갈린 기울어진 궤도 3개를 점 3개가 공전한다.
     앞으로 오면 커지고 진해지고, 뒤로 가면 작아지고 흐려져 깊이감이 난다."""
@@ -281,7 +318,7 @@ class Window(QWidget):
         self.scroll.setWidget(body)
 
         # 작업 중 멘트
-        self.busy = QLabel("")
+        self.busy = ShimmerLabel()
         self.busy.setObjectName("busy")
         self.dots = Spinner()
         self.dots.hide()
