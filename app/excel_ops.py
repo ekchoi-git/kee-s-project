@@ -527,6 +527,9 @@ GONE_CODES = {0x80010108, 0x800706BA, 0x800706BE, 0x80010114}  # Excel이 닫혔
 
 def excel_error(e):
     """Excel(COM) 오류를 사용자가 할 일을 알 수 있는 문장으로. COM 오류가 아니면 원래 문구."""
+    if isinstance(e, AttributeError) and re.fullmatch(r"\w+\.\w+", str(e)):
+        # 셀 편집 중 Excel이 이름 조회를 거부하면 pywin32가 'PivotTables.Count' 같은 AttributeError로 바꿔 버림
+        return "Excel에서 셀을 편집 중입니다. 입력 중인 셀에서 Enter나 Esc를 누른 뒤 다시 요청해주세요."
     if not isinstance(e, pywintypes.com_error):
         return str(e)
     info = e.excepinfo if isinstance(getattr(e, "excepinfo", None), tuple) else None
