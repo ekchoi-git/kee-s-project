@@ -538,11 +538,11 @@ def _fingerprint(ws):
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def execute(t, plan):
+def execute(t, plan, progress=None):
     """검사를 통과한 계획을 실행하고 바뀐 내용을 설명 목록으로 돌려준다. 실패하면 PlanError."""
     stage = ["준비"]
     try:
-        return _execute(t, plan, stage)
+        return _execute(t, plan, stage, progress)
     except PlanError:
         raise
     except Exception as e:
@@ -575,12 +575,14 @@ def excel_error(e):
     return f"Excel 내부 오류(0x{code:08X}){': ' + detail if detail else ''}. 같은 문제가 계속되면 이 번호를 알려주세요."
 
 
-def _execute(t, plan, stage):
+def _execute(t, plan, stage, progress=None):
     ws, xl, done = t.ws, t.xl, []
     idx = {h: i + 1 for i, h in enumerate(t.headers)}
+    progress = progress or (lambda _: None)
 
     # 원본 수정(사용자가 지시한 경우만): 이어지는 정렬·합계가 바뀐 숫자를 쓰도록 맨 먼저
     stage[0] = "숫자 변환"
+    progress(stage[0])
     converted = 0
     for c in plan["to_number"]:
         if not plan["edit_source"]:
@@ -588,7 +590,9 @@ def _execute(t, plan, stage):
         j = idx[c] - 1
         hits = rows_where(t, j, lambda x: _num(x) is not None)
         col = t.region.Column + j
-        for r, x in hits:
+        for n, (r, x) in enumerate(hits):
+            if n % 100 == 0:
+                progress(f"숫자 변환 {n + 1:,}/{len(hits):,}")
             cell = ws.Cells(r, col)
             if cell.NumberFormat == "@":
                 cell.NumberFormat = "General"  # 텍스트 서식이면 숫자를 넣어도 다시 글자가 됨
@@ -608,6 +612,7 @@ def _execute(t, plan, stage):
 
     # 필터를 먼저 걸면 Excel이 보이는 행만 정렬하므로 정렬이 먼저
     stage[0] = "정렬"
+    progress(stage[0])
     if (plan["sorts"] or plan["filters"]) and t.spills():
         a = ", ".join(s[0] for s in t.spills())
         raise PlanError(f"이 표는 {a} 수식이 펼쳐진 결과라 Excel 정렬·필터를 쓸 수 없습니다. "
@@ -633,6 +638,7 @@ def _execute(t, plan, stage):
             done.append(f"⚠ 임의 판단: '{c}' 열의 글자로 저장된 숫자 {len(hits)}칸({where})은 정렬·비교에서 숫자로 취급되지 않았습니다.")
 
     stage[0] = "필터"
+    progress(stage[0])
     for f in plan["filters"]:
         value = f["value"]
         if f["op"] == "=" and isinstance(value, str):
@@ -653,6 +659,7 @@ def _execute(t, plan, stage):
         done.append(f"→ 조건에 맞아 보이는 행 {shown}개")
 
     stage[0] = "셀 입력"
+    progress(stage[0])
     if plan["writes"]:
         out_ws = new_sheet(t, plan["new_sheet"]) if plan["new_sheet"] else ws
         ranges = [out_ws.Range(w["address"]) for w in plan["writes"]]
@@ -673,6 +680,7 @@ def _execute(t, plan, stage):
             t.region.ClearContents()
             done.append(f"기존 표 {t.region.Address.replace('$', '')}를 비우고 새로 씀")
         for w, r in zip(plan["writes"], ranges):
+            progress(f"셀 입력: {w['address']}")
             if w["content"].startswith("="):
                 if len(w["content"]) > 8000:  # Excel 수식 길이 한도 8192자
                     raise FormulaError(f"{w['address']} 수식이 {len(w['content']):,}자로 Excel 한도를 넘습니다. 더 짧은 수식으로 만들어야 합니다.")
@@ -707,6 +715,7 @@ def _execute(t, plan, stage):
             else:
                 r.Value2 = w["content"]
         xl.Calculate()
+        progress("수식 계산 완료")
         try:
             circ = out_ws.CircularReference
         except Exception:
@@ -753,15 +762,18 @@ def _execute(t, plan, stage):
             done += assumption_notes(t, [w["content"] for w in plan["writes"] if w["content"].startswith("=")], out_ws is ws)
 
     stage[0] = "표시 형식"
+    progress(stage[0])
     for f in plan["formats"]:
         ws.Range(f["address"]).NumberFormat = f["format"]  # 값·수식은 그대로, 보이는 모양만 바뀜
         done.append(f"표시 형식: {f['address']} → {f['format']} (실제 값은 그대로)")
 
     stage[0] = "색 표시"
+    progress(stage[0])
     for h in plan["highlights"]:
         done += highlight(t, h)
 
     stage[0] = "피벗"
+    progress(stage[0])
     if plan["pivot"]:
         p = plan["pivot"]
         names = {s.Name for s in t.wb.Worksheets}
@@ -896,11 +908,37 @@ class Undo:
     def __init__(self, t):
         self.ws, self.wb, self.xl = t.ws, t.wb, t.xl
 
+    @staticmethod
+    def _filters(af):
+        if af is None:
+            return []
+        saved = []
+        for i in range(1, af.Filters.Count + 1):
+            f = af.Filters(i)
+            if not f.On:
+                continue
+            args = {"Field": i, "Criteria1": f.Criteria1}
+            try:
+                op = f.Operator
+                if op:
+                    args["Operator"] = op
+            except Exception:
+                pass
+            try:
+                args["Criteria2"] = f.Criteria2
+            except Exception:
+                pass
+            saved.append(args)
+        return saved
+
     def before(self):
         self.drop()
         self.sheets = [s.Name for s in self.wb.Worksheets]
-        self.tables = [lo.Name for lo in self.ws.ListObjects]
         try:
+            self.table_specs = [(lo.Name, lo.Range.Address, lo.TableStyle) for lo in self.ws.ListObjects]
+            self.sheet_filter = (self.ws.AutoFilter.Range.Address,
+                                 self._filters(self.ws.AutoFilter)) if self.ws.AutoFilterMode else None
+            self.table_filters = {lo.Name: self._filters(lo.AutoFilter) for lo in self.ws.ListObjects}
             # shortcut: 숨김 사본이 사용자 문서 안에 있어 그 사이 저장하면 같이 저장됨, 다음 작업·되돌리기 때 지워짐
             self.ws.Copy(After=self.wb.Worksheets(self.wb.Worksheets.Count))
             b = self.wb.Worksheets(self.wb.Worksheets.Count)
@@ -929,16 +967,44 @@ class Undo:
                 lo.AutoFilter.ShowAllData()
             lo.Unlist()  # 표를 남긴 채 붙이면 충돌하므로 일반 범위로 바꾼 뒤 비움
         self.ws.AutoFilterMode = False
-        # shortcut: 작업 전 필터가 걸려 있었다면 그 조건은 복원 안 됨, 필터 위 작업 지원 시 보강
         self.ws.Cells.Clear()  # Delete는 다른 시트 수식의 참조를 #REF!로 깨뜨려서 Clear를 씀
         backup = self.wb.Worksheets(BACKUP)
-        # 필터가 걸린 채 사본을 떴으면 사본의 숨은 행은 Copy가 건너뛰어 되돌리면 보이던 행만 남으므로 모두 펼쳐서 붙임
+        # 필터가 걸린 채 사본을 떴으면 사본의 숨은 행은 Copy가 건너뛰어 되돌리면 보이던 행만 남으므로 모두 펼쳐서 붙임.
+        # 표(ListObject)의 필터는 AutoFilterMode·Rows.Hidden으로 안 풀려서 표마다 따로 푼다(안 풀면 숨은 행 데이터가 사라짐)
+        for lo in backup.ListObjects:
+            if lo.AutoFilter and lo.AutoFilter.FilterMode:
+                lo.AutoFilter.ShowAllData()
         backup.AutoFilterMode = False
         backup.Rows.Hidden = False
         backup.Cells.Copy(self.ws.Cells)
-        for lo, name in zip(self.ws.ListObjects, self.tables):
-            lo.Name = name  # 붙여넣으면 표 이름이 바뀌어 다른 수식의 표 참조가 깨지므로 원래 이름으로
+        skipped = []
+        for name, address, style in self.table_specs:
+            # 붙이면 표가 새 이름으로 따라오므로 같은 자리의 표를 원래 이름으로(다른 수식의 표 참조가 깨지지 않게), 없으면 다시 만듦
+            lo = next((item for item in self.ws.ListObjects if item.Range.Address == address), None)
+            if lo is None:
+                lo = self.ws.ListObjects.Add(1, self.ws.Range(address), None, 1)
+                lo.TableStyle = style
+            lo.Name = name
+            skipped += self._reapply(lo.Range, self.table_filters.get(name, []))
+        if self.sheet_filter:
+            address, filters = self.sheet_filter
+            region = self.ws.Range(address)
+            if not self.ws.AutoFilterMode:
+                region.AutoFilter(Field=1)  # 조건 없이 화살표만 켬(인수 없는 AutoFilter()는 pywin32에서 오류)
+            skipped += self._reapply(region, filters)
         self.drop()
+        return skipped
+
+    @staticmethod
+    def _reapply(rng, filters):
+        """필터 조건을 다시 건다. 색·아이콘 필터처럼 다시 걸 수 없는 조건은 건너뛰고 그 열 번호를 돌려준다(값 복원은 이미 끝남)."""
+        skipped = []
+        for args in filters:
+            try:
+                rng.AutoFilter(**args)
+            except pywintypes.com_error:
+                skipped.append(args["Field"])
+        return skipped
 
     def drop(self):
         self.xl.DisplayAlerts = False

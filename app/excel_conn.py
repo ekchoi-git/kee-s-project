@@ -1,6 +1,8 @@
 """실행 중인 Excel(여러 개여도)에서 열린 통합 문서·시트와 데이터 범위를 읽는다. FR-01."""
 import pythoncom
 import win32com.client as w
+import win32gui
+import win32process
 
 
 class ExcelError(Exception):
@@ -37,12 +39,35 @@ def list_files():
     wbs = _open_workbooks()
     if not wbs:
         raise ExcelError("열려 있는 Excel 파일을 찾지 못했습니다. Excel에서 파일을 연 뒤 새로고침을 눌러주세요.")
-    try:
-        current = wbs[0].Application.ActiveWorkbook.Name
-    except Exception:
-        current = None
-    wbs.sort(key=lambda wb: wb.Name != current)
+    current = foreground_workbook(wbs)
+    if current is None:  # 셀리 창이 앞에 있을 때(시작·새로고침): Excel이 보고 있는 파일을 먼저
+        try:
+            name = wbs[0].Application.ActiveWorkbook.Name
+            current = next(wb for wb in wbs if wb.Name == name)
+        except Exception:
+            pass
+    wbs.sort(key=lambda wb: current is None or
+             (wb.Application.Hwnd, wb.Name) != (current.Application.Hwnd, current.Name))
     return [{"wb": wb, "name": wb.Name} for wb in wbs]
+
+
+def foreground_workbook(wbs):
+    """현재 앞에 있는 Excel 프로세스의 활성 통합 문서만 돌려준다."""
+    hwnd = win32gui.GetForegroundWindow()
+    if not hwnd:
+        return None
+    pid = win32process.GetWindowThreadProcessId(hwnd)[1]
+    for wb in wbs:
+        try:
+            xl = wb.Application
+            if win32process.GetWindowThreadProcessId(xl.Hwnd)[1] == pid:
+                active = xl.ActiveWorkbook
+                if active is not None:
+                    return next((item for item in wbs if item.Application.Hwnd == xl.Hwnd
+                                 and item.Name == active.Name), None)
+        except Exception:
+            continue
+    return None
 
 
 def active_sheet(wb):

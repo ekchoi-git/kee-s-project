@@ -54,7 +54,7 @@ def run():
             QTimer.singleShot(300, wait); return
         msg = last()
         results.append(f"■ {req}\n  답: {msg.splitlines()[0]}")
-        if msg.startswith("✔"):
+        if "✔ 적용 완료" in msg:  # 말풍선 글은 HTML이라 startswith로는 못 찾음
             results.append("  적용 확인: " + chk())
             win.undo()
             results.append("  되돌리기: " + last() + f" / 원래와 같음={fingerprint(ws) == orig} / " + check_pivot())

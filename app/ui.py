@@ -6,7 +6,7 @@ import math
 import threading
 import time
 
-from PySide6.QtCore import QByteArray, QObject, QPointF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QByteArray, QEventLoop, QObject, QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QLinearGradient, QPainter, QPen, QPixmap, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QHBoxLa
                                QVBoxLayout, QWidget)
 
 from . import ai, classify
-from .excel_conn import ExcelError, active_sheet, list_files, read_summary
+from .excel_conn import ExcelError, active_sheet, foreground_workbook, list_files, read_summary
 from .excel_ops import (FormulaError, PlanError, Target, Undo, column_values, excel_error, execute, fingerprint,
                         source_changes, suggest_to_number, validate, write_classification)
 
@@ -479,7 +479,7 @@ class Window(QWidget):
 
         # Excel에서 파일·시트를 바꾸면 따라간다 (1초마다 확인, 바뀐 경우에만 다시 읽음)
         self.timer = QTimer(self)
-        self.timer.timeout.connect(lambda: (self.follow_active(), self.update_sheet()))
+        self.timer.timeout.connect(lambda: (self.follow_active(), self.update_sheet()) if not self.busy_msg else None)
         self.timer.start(1000)
         self.refresh()
         self.show_key()
@@ -598,8 +598,10 @@ class Window(QWidget):
         if not self.files or self.busy_msg:
             return
         try:
-            # shortcut: 첫 파일의 Excel 프로세스만 봄, Excel을 여러 개 띄워 쓰는 경우가 생기면 프로세스별로 확인
-            name = self.files[0]["wb"].Application.ActiveWorkbook.Name
+            active = foreground_workbook([f["wb"] for f in self.files])
+            if active is None:
+                return
+            name = active.Name
         except Exception:
             return  # 셀 편집 중·Excel 닫힘: 다음 확인 때 다시
         if name == self.excel_active:
@@ -837,7 +839,7 @@ class Window(QWidget):
                                            plan["classify"]["output"], plan["edit_source"])
                 done += classify.report(res, values, loc)
                 t = Target(t.ws)  # 분류 열이 붙은 표로 다시 읽어야 이어지는 정렬·필터가 그 열을 포함
-            done += execute(t, plan)
+            done += execute(t, plan, self.excel_progress)
         except Exception as e:
             try:
                 u.undo(force=True)
@@ -854,6 +856,12 @@ class Window(QWidget):
         steps = "\n".join("• " + d for d in done)
         head = "⚠ 일부만 분류됨" if cls and cls[0]["failed"] else "✔ 적용 완료"  # 일부 실패를 전체 성공으로 표시하지 않음
         return f"{head}\n{plan['summary']}\n\n대상: {t.wb.Name} › {t.ws.Name}\n{steps}"
+
+    def excel_progress(self, stage):
+        """Excel COM 호출 사이에 화면을 다시 그리되 사용자 입력은 작업 종료까지 막는다."""
+        self.busy_msg = f"Excel에 적용하는 중… {stage}"
+        self.spin()
+        QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)
 
     def drop_suggestion(self):
         self.suggestion = None
@@ -879,7 +887,7 @@ class Window(QWidget):
             return
         self.drop_suggestion()
         try:
-            self.last.undo()
+            skipped = self.last.undo()
         except PlanError as e:
             self.say(str(e), "err")
             return
@@ -890,7 +898,9 @@ class Window(QWidget):
         if self.planner:
             self.planner.undone()
         self.set_busy("")
-        self.say("↩ 직전 AI 작업을 되돌렸습니다.")
+        self.say("↩ 직전 AI 작업을 되돌렸습니다."
+                 + (f"\n⚠ 색·아이콘 같은 일부 필터 조건(표의 {', '.join(map(str, skipped))}번째 열)은 다시 걸지 못했습니다. "
+                    "필요하면 직접 걸어주세요." if skipped else ""))
 
 
 def load_fonts():

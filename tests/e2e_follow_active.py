@@ -17,6 +17,8 @@ b_wb = xl.Workbooks.Open(shutil.copy(src, os.path.join(tmp, "follow_b.xlsx")))
 # 셀리가 이 시험용 Excel의 파일만 보게 함(사용자가 열어 둔 Excel 파일은 목록에서 뺌)
 ui.list_files = lambda: sorted(({"wb": wb, "name": wb.Name} for wb in xl.Workbooks),
                                key=lambda f: f["name"] != xl.ActiveWorkbook.Name)
+# 시험 중에는 터미널이 맨 앞 창이므로 '사용자가 이 Excel 창을 보고 있음'을 흉내 냄
+ui.foreground_workbook = lambda wbs: next((wb for wb in wbs if wb.Name == xl.ActiveWorkbook.Name), None)
 try:
     app = QApplication([])
     win = ui.Window()
