@@ -9,7 +9,7 @@ from app.ui import Window, STYLE
 from app.excel_ops import fingerprint
 
 tmp = tempfile.mkdtemp()
-path = shutil.copy(os.path.join(os.path.dirname(__file__), "..", "거래내역_검증용_500행.xlsx"), os.path.join(tmp, "test_copy.xlsx"))
+path = shutil.copy(os.path.join(os.path.dirname(__file__), "fixtures", "거래내역_검증용_500행.xlsx"), os.path.join(tmp, "test_copy.xlsx"))
 xl = w.GetActiveObject("Excel.Application")
 wb = xl.Workbooks.Open(path)
 ws = wb.Worksheets("더미 데이터"); ws.Activate()

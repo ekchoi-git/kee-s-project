@@ -9,7 +9,7 @@ from app.ui import Window, STYLE
 from app.excel_ops import fingerprint
 
 tmp = tempfile.mkdtemp()
-path = shutil.copy(os.path.join(os.path.dirname(__file__), "..", "거래내역_검증용_500행.xlsx"), os.path.join(tmp, "test_copy.xlsx"))
+path = shutil.copy(os.path.join(os.path.dirname(__file__), "fixtures", "거래내역_검증용_500행.xlsx"), os.path.join(tmp, "test_copy.xlsx"))
 from app.excel_conn import list_files
 # 사용자가 편집 중인 Excel은 피하고 응답 가능한 Excel에서 연다
 xl = next(f["wb"].Application for f in list_files() if f["wb"].Application.Ready)

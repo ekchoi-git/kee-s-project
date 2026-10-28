@@ -18,7 +18,7 @@ def reply(request):
         "id": "msg_1", "type": "message", "role": "assistant", "model": body["model"],
         "content": [{"type": "text", "text": json.dumps(plan, ensure_ascii=False)}],
         "stop_reason": "end_turn", "stop_sequence": None,
-        "usage": {"input_tokens": 100, "output_tokens": 20},
+        "usage": {"input_tokens": 100, "output_tokens": 20, "cache_read_input_tokens": 5000, "cache_creation_input_tokens": 0},
     })
 
 p = ai.Planner.__new__(ai.Planner)
@@ -27,8 +27,8 @@ p.client = anthropic.Anthropic(api_key="sk-ant-api03-x", http_client=httpx2.Clie
 plan, tokens = p.plan("info", "첫 요청")
 plan, tokens = p.plan("info", "답")
 beta, body = sent[-1]
-assert plan["question"] == "어느 열인가요?" and tokens == 120
-assert body["system"] == ai.SYSTEM and [m["role"] for m in body["messages"]] == ["user", "assistant", "user"]
+assert plan["question"] == "어느 열인가요?" and tokens == 5120
+assert body["system"] == [{"type": "text", "text": ai.SYSTEM, "cache_control": {"type": "ephemeral"}}] and [m["role"] for m in body["messages"]] == ["user", "assistant", "user"]
 assert body["output_config"]["format"]["schema"] == ai.PLAN_SCHEMA and body["fallbacks"] == "default"
 assert "server-side-fallback-2026-07-01" in beta
 

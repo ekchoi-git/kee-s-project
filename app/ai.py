@@ -35,7 +35,9 @@ def ask(client, system, messages, schema):
     """정해진 JSON 형식으로 답을 받는다(OpenAI·Claude 공통). (답, 토큰 수)"""
     if isinstance(client, anthropic.Anthropic):
         r = client.beta.messages.create(
-            model=CLAUDE_MODEL, max_tokens=16000, system=system, messages=messages,
+            model=CLAUDE_MODEL, max_tokens=16000, messages=messages,
+            # 매번 같은 긴 규칙 설명은 Claude 쪽에 저장해 두고 재사용(그 부분 입력 비용 약 1/10). OpenAI는 자동으로 함
+            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             output_config={"effort": "medium", "format": {"type": "json_schema", "schema": schema}},
             betas=["server-side-fallback-2026-07-01"], fallbacks="default",  # 안전 검사에 걸리면 서버가 다른 Claude 모델로 다시 시도
         )
@@ -44,7 +46,9 @@ def ask(client, system, messages, schema):
         if r.stop_reason == "max_tokens":
             raise RuntimeError("AI 답이 너무 길어 잘렸습니다. 요청을 나눠서 다시 시도해주세요.")
         text = next(b.text for b in r.content if b.type == "text")
-        return json.loads(text), r.usage.input_tokens + r.usage.output_tokens
+        u = r.usage  # 캐시에서 읽거나 캐시에 쓴 입력은 input_tokens에 안 들어 있음
+        return json.loads(text), (u.input_tokens + (u.cache_read_input_tokens or 0)
+                                  + (u.cache_creation_input_tokens or 0) + u.output_tokens)
     r = client.chat.completions.create(
         model=MODEL, messages=[{"role": "system", "content": system}, *messages],
         response_format={"type": "json_schema", "json_schema": {"name": "out", "strict": True, "schema": schema}},

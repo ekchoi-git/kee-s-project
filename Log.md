@@ -75,3 +75,10 @@
 ## 2026-10-28 영문명 Celly로 변경
 - 사용자 요청에 따라 영문 표기를 `Celli`에서 `Celly`로 변경. 실행 진입점 `celli.py` → `celly.py`, 아이콘 리소스 `app/assets/celli-icon.*` → `app/assets/celly-icon.*`, `app/ui.py`의 창 아이콘 경로와 `build.bat`의 입력·출력 파일명을 갱신함. 한글 화면 이름 `셀리`는 유지.
 - 바탕화면 배포 파일을 `Celly.exe`로 교체하고 이전 `Celli.exe`를 제거함. 새 EXE를 직접 실행해 `셀리` 창이 열리는 것을 확인함.
+
+## 2026-10-28 미커밋 작업 정리 · 시험 파일 정리 · Claude 캐싱
+- 그동안 작업 폴더에만 있던 변경(상위 N건 필터, `(△151)` 음수, Celly 이름 변경·빌드, 파일 목록 글꼴, CLAUDE.md)을 `df716cd`로 커밋.
+- 루트의 `거래내역_검증용_500행.xlsx`는 셀리를 직접 써 본 흔적(시트 3개·`_ai_undo`)이 저장돼 있어 시험 기준으로 쓰지 않음. 깨끗한 커밋본을 `tests/fixtures/`로 옮기고 루트 파일은 Git 추적에서만 뺌(디스크에는 그대로). `e2e_app`·`e2e_classify`가 fixtures를 읽음.
+- `e2e_merge_sheets`: 시험 안에서 통합 문서를 직접 만들어 씀(철강 파일 불필요), `DispatchEx` 별도 Excel. `e2e_follow_active`: 별도 Excel + `ui.list_files`를 그 Excel 파일만 보게 바꿔 실행. 숨긴 Excel에서는 `Activate()`로 활성 파일이 안 바뀌어 시험 Excel을 잠깐 보이게 함.
+- Claude 요청의 규칙 설명(system)에 `cache_control` → 반복 요청에서 그 부분 입력 비용 약 1/10. 표시 토큰 수에 캐시 읽기·쓰기 토큰 포함. 실제 Claude 키로 캐시 적중은 아직 확인 안 함.
+- 검증: 단위 시험 3종, `e2e_app` 4건, `e2e_merge_sheets` 2개 22행·6개 70행, `e2e_follow_active` 통과(모두 OpenAI 키).
