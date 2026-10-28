@@ -12,7 +12,7 @@ if DEV:
     load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"), override=True)
 
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.6-terra")
-CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-5-5")
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5")  # Opus 대비 토큰 단가 절반
 KEY_ENVS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
 
 

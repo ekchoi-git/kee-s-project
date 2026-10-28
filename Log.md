@@ -57,3 +57,4 @@
 - 사용자 요청: 배포 대상 중 OpenAI 키만, Claude 키만 가진 사람이 있으니 둘 다 쓰게. 화면 구성은 그대로.
 - 구현: 키가 `sk-ant-`로 시작하면 Claude(`claude-opus-5-5`, effort medium, 구조화 출력 `output_config.format`, 거절 시 서버 대체 `fallbacks: "default"`), 아니면 OpenAI. `ai.connect()`·`ai.ask()` 한 곳에서 갈라지고 계획(`Planner`)·분류(`classify._ask`)가 같이 씀. 환경 변수 `ANTHROPIC_API_KEY`·`CLAUDE_MODEL`도 읽음. 화면은 키 칸 안내·확인 중 문구·분류 진행 문구·키 툴팁에 회사 이름만 표시. `requirements.txt`에 `anthropic` 추가(exe 빌드 시 포함됨).
 - 검증: `tests/test_claude_provider.py`(가짜 Claude 응답으로 요청 형식·기록 전달·파싱, 실제 Claude 서버에 잘못된 키 → '인증 실패' 안내) 통과. OpenAI 키로 `tests/e2e_app.py` 4개 요청 적용 확인. **실제 Claude 키로는 아직 안 돌려 봄**(PC에 키 없음) → Claude 키를 받으면 e2e 시험들을 Claude로 다시 돌릴 것. 철강·마스크 테스트 파일은 폴더에서 빠져 있어 그 e2e는 이번에 못 돌림.
+- 후속(2026-10-28): Claude 기본 모델을 `claude-sonnet-5-5`로 변경(사용자 요청, 토큰 단가가 Opus 5.5의 절반). 거절 시 서버 대체 `fallbacks: "default"`는 Sonnet 5.5에서도 Claude API에서 지원. 실제 Claude 키 시험은 여전히 미실시.
