@@ -370,7 +370,28 @@ class Target:
             *self.quality(),
             "샘플 5행:", *sample,
             *self.outside(),
+            *self.other_sheets(),
         ])
+
+    def other_sheets(self, limit=30):
+        """같은 파일의 다른 시트 표(이름·범위·머리글). 이게 없으면 AI는 여러 시트를 합치거나 참조할 때 시트 이름을 되묻는다."""
+        lines = []
+        for i in range(1, self.wb.Worksheets.Count + 1):
+            ws = self.wb.Worksheets(i)
+            if ws.Name == self.ws.Name:
+                lines.append(f"'{ws.Name}': (현재 시트)")  # "2번째 시트" 같은 순서 지시를 풀 수 있게 자리만 표시
+                continue
+            if ws.Name == BACKUP or ws.Type != -4167 or ws.UsedRange.Count < 2:  # -4167 = xlWorksheet
+                continue
+            r = ws.ListObjects(1).Range if ws.ListObjects.Count else first_block(ws)
+            row1 = r.Rows(1).Value2
+            heads = [str(h) if h is not None else "" for h in (row1[0] if isinstance(row1, tuple) else (row1,))]
+            f = str(r.Cells(1, 1).Formula)  # 이미 합친 결과 시트를 또 합치면 행이 두 번 들어감
+            lines.append(f"'{ws.Name}': 데이터 범위 {r.Address} (머리글 {r.Row}행, 데이터 {r.Rows.Count - 1}행) 열: {', '.join(heads)}"
+                         + (f"  ← 수식 결과 시트: {f[:80]}" if f.startswith("=") else ""))
+            if len(lines) >= limit:
+                break
+        return ["같은 파일의 시트(파일 안 순서대로):", *lines] if len(lines) > 1 else []
 
     def column_formulas(self):
         """칸마다 채운 수식 열(펼쳐진 배열이 아닌 것)의 첫 데이터 행 수식. 이게 없으면 AI는 '구매비 합계'가

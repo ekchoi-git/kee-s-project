@@ -59,7 +59,7 @@ PLAN_SCHEMA = _obj({
 SYSTEM = """너는 Windows Excel 작업 도우미의 계획 담당이다. 사용자의 한국어 요청을 해석해 작업 계획 JSON만 답한다.
 
 규칙:
-- action: 실행할 작업이면 "change", 대상·필수 정보가 없어 결정할 수 없으면 "ask"(question에 필요한 것만 질문), 파일 삭제·다른 파일 접근·매크로·외부 연결·시트 밖 작업 등 허용되지 않은 요청이면 "unsupported".
+- action: 실행할 작업이면 "change", 대상·필수 정보가 없어 결정할 수 없으면 "ask"(question에 필요한 것만 질문), 파일 삭제·다른 파일 접근·매크로·외부 연결 등 허용되지 않은 요청이면 "unsupported". 같은 파일의 다른 시트를 수식으로 읽는 것은 허용된다.
 - 한 요청에 필요한 filters, sorts, writes, pivot을 함께 채울 수 있다. 쓰지 않는 항목은 빈 배열 또는 null.
 - 열 이름은 [시트 정보]의 머리글을 글자 그대로 쓴다.
 - 합계·건수 같은 계산을 직접 하지 않는다. 결과 숫자를 content에 쓰지 말고 Excel 수식이나 피벗으로 만든다.
@@ -83,6 +83,7 @@ SYSTEM = """너는 Windows Excel 작업 도우미의 계획 담당이다. 사용
 - [시트 정보]에 '이 표는 수식 결과(펼쳐진 배열)'가 있으면 그 표에는 sorts·filters를 쓰지 않는다(Excel이 거부함). 순서·조건을 바꾸려면 그 시작 칸 수식을 SORT/SORTBY/FILTER로 감싸거나 고친 새 수식을 같은 시작 칸에 writes로 쓴다. 이것은 표 안을 고치는 것이므로 edit_source=true로 바로 계획한다. 실행 전에 프로그램이 사용자에게 확인 버튼을 띄우므로 action "ask"로 고쳐도 되는지 묻지 않는다. 그 시작 칸 수식을 참조하는 다른 수식(예: C2의 A2#)은 그대로 둔다. 이런 표를 같은 자리에 다시 짜면(행·열 바꾸기 등) 프로그램이 기존 표 범위를 먼저 모두 비운 뒤 새 수식을 쓴다. 그러니 새 수식은 그 표의 기존 칸(예: =TRANSPOSE(A2:C5))을 읽으면 안 되고, [시트 정보]의 펼쳐진 배열 수식과 '표 열의 수식'이 가리키는 원본 데이터(다른 시트 포함)에서 다시 계산한다. 같은 계획에서 새로 쓰는 칸(예: B1#)은 참조해도 된다.
 - 계산은 원본 값 그대로 한다. 글자로 저장된 숫자를 수식 안에서 숫자로 바꾸지 않는다(--, VALUE 금지). 그런 칸이 있으면 summary에 '글자로 저장된 숫자 N칸은 합계에서 빠진다'고 적는다. 원본을 숫자로 바꾸는 제안은 프로그램이 결과 아래 버튼으로 따로 한다.
 - new_sheet: 사용자가 결과를 새 시트에 일반 표(수식)로 만들라고 하면 짧은 시트 이름(예: "유형별 합계"), 아니면 ""(피벗은 프로그램이 새 시트를 따로 만드므로 ""). 새 시트 만들기는 허용된 작업이다. 이때 writes는 모두 그 새 시트에 쓰이므로 address는 새 시트 기준(A1부터)이고, 원본 데이터는 '시트명'!$D$2:$D$501처럼 [시트 정보]의 시트 이름을 작은따옴표로 감싸 참조한다. 새 시트의 펼쳐진 목록도 A2# 같은 # 참조를 쓴다.
+- 여러 시트 합치기(2개 이상, "시트들을 합쳐", "통합해", "모든 시트"): [시트 정보]의 '같은 파일의 시트'에서 대상을 고른다. "2번째 시트"는 그 목록 순서로 찾고, 시트를 말하지 않거나 "모든 시트"면 머리글이 현재 시트와 대부분 같은 시트 전부를 쓰고, 열 구성이 크게 다른 시트와 '수식 결과 시트'(이미 합친 결과 등, 넣으면 행이 중복됨)는 사용자가 이름으로 고르지 않는 한 빼고 summary에 뺀 시트를 적는다. 시트 이름은 목록 글자 그대로 쓰고 이미 목록에 있으면 묻지 않는다. 결과는 새 시트(new_sheet에 짧은 이름, 예: "통합")에 A1 수식 하나로 위아래로 쌓는다. 첫 시트만 머리글 행을 포함하고 나머지는 데이터 행만, 빈 칸이 0이 되지 않게 각 범위를 IF로 감싼다. 검증된 방식: =VSTACK(IF('시트1'!$A$1:$E$20="","",'시트1'!$A$1:$E$20),IF('시트2'!$A$2:$E$30="","",'시트2'!$A$2:$E$30),…). 시트 수만큼 인수를 늘린다. 시트마다 열 구성이 조금 다르면 묻지 않고 고른 시트 모두에 있는 열만 현재 시트 순서로 쌓는다(순서가 다르거나 일부 열만 쓰면 CHOOSECOLS로 맞춤). 빠진 열은 summary에 적는다. 공통 열이 없거나 사용자가 고른 시트의 구조가 전혀 다르면 action "ask"로 묻는다. 동적 배열 함수를 지원하지 않는 Excel이면 "unsupported".
 - 피벗은 새 시트에 만들어진다. 사용자가 피벗을 원하거나 피벗이 더 적합할 때 쓴다. 피벗도 글자로 저장된 숫자를 합계에 넣지 못한다.
 - summary에는 이 계획에 실제로 들어 있는 작업만 적는다. 계획에 없는 변환·수정을 했다고 쓰지 않는다.
 - filters의 value는 글자로 준다(숫자도 "100000000"처럼). blank/notblank는 value를 ""로.
@@ -165,9 +166,11 @@ class Planner:
         # 네트워크 재시도는 Excel 변경 전 단계라 안전함 (PRD FR-08)
         self.client = OpenAI(api_key=api_key(), timeout=60, max_retries=2)
         self.history = []
+        self.asking = None  # AI가 되묻기 시작한 요청의 기록 위치: 답이 길어져도 처음 요청이 잘려 나가지 않게
 
     def reset(self):
         self.history = []
+        self.asking = None
 
     def undone(self):
         """되돌린 작업을 AI가 여전히 있다고 보고 후속 계획을 세우지 않도록 기록에 남긴다."""
@@ -175,13 +178,20 @@ class Planner:
                          {"role": "assistant", "content": "알겠습니다."}]
 
     def plan(self, sheet_info, request):
-        msgs = [{"role": "system", "content": SYSTEM}, *self.history[-8:],
+        start = max(len(self.history) - 8, 0)
+        if self.asking is not None:
+            start = min(start, self.asking)
+        msgs = [{"role": "system", "content": SYSTEM}, *self.history[start:],
                 {"role": "user", "content": f"[시트 정보]\n{sheet_info}\n\n[요청]\n{request}"}]
         r = self.client.chat.completions.create(
             model=MODEL, messages=msgs,
             response_format={"type": "json_schema", "json_schema": {"name": "plan", "strict": True, "schema": PLAN_SCHEMA}},
         )
         plan = json.loads(r.choices[0].message.content)
+        if plan["action"] != "ask":
+            self.asking = None
+        elif self.asking is None:
+            self.asking = len(self.history)
         # 시트 정보는 매번 새로 보내므로 기록에는 요청과 계획만 남겨 토큰을 아낀다
         self.history += [{"role": "user", "content": request},
                          {"role": "assistant", "content": json.dumps(plan, ensure_ascii=False)}]
