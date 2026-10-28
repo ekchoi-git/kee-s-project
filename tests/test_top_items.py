@@ -37,7 +37,7 @@ class TopItemsFilterTest(unittest.TestCase):
         plan = {
             "filters": [{"column": "접수건수", "op": "top_items", "value": "다섯"}],
             "sorts": [], "pivot": None, "classify": None, "writes": [], "to_number": [],
-            "edit_source": False, "formats": [], "highlights": [], "action": "change",
+            "edit_source": False, "formats": [], "highlights": [], "to_values": [], "action": "change",
         }
         self.assertTrue(any("1~500" in message for message in validate(plan, ["접수건수"])))
 

@@ -72,7 +72,10 @@ def validate(plan, headers):
         if BLOCKED_FN.search(w["content"]) or EXTERNAL.search(w["content"]):
             bad.append(f"'{w['content'][:60]}'는 외부 연결·다른 파일·추가 기능이 필요한 수식이라 실행하지 않습니다.")
     bad += [f"'{c}' 열이 표에 없습니다." for c in plan["to_number"] if c not in headers]
-    if plan["to_number"] and not plan["edit_source"]:
+    for a in plan["to_values"]:
+        if not ADDRESS.match(a.upper()):
+            bad.append(f"'{a}'는 이 시트의 셀 주소가 아닙니다.")
+    if (plan["to_number"] or plan["to_values"]) and not plan["edit_source"]:
         bad.append("원본 수정 지시 없이 원본 값을 바꾸려 했습니다.")
     for f in plan["formats"]:
         if not ADDRESS.match(f["address"].upper()):
@@ -87,7 +90,7 @@ def validate(plan, headers):
         if BLOCKED_FN.search(h["formula"]) or EXTERNAL.search(h["formula"]):
             bad.append(f"'{h['formula'][:60]}'는 외부 연결·다른 파일이 필요한 수식이라 실행하지 않습니다.")
     if plan["action"] == "change" and not (plan["filters"] or plan["sorts"] or plan["writes"] or plan["pivot"] or plan["classify"]
-                                           or plan["to_number"] or plan["formats"] or plan["highlights"]):
+                                           or plan["to_number"] or plan["to_values"] or plan["formats"] or plan["highlights"]):
         bad.append("실행할 작업이 없습니다.")
     return bad
 
@@ -170,6 +173,12 @@ def blank(x):
     return x is None or (isinstance(x, str) and not x.strip())
 
 
+def value_range(ws, address):
+    """값으로 바꿀 범위. 펼쳐진 수식의 시작 칸이면 펼쳐진 범위 전체."""
+    r = ws.Range(address)
+    return r.SpillingToRange if r.Count == 1 and dynamic_arrays(ws) and r.HasSpill else r
+
+
 def source_changes(t, plan):
     """원본 표 안을 바꾸는 내용(확인 창에 보여줄 줄). 원본 수정 지시가 없으면 빈 목록(실행 단계에서 막힘)."""
     if not plan["edit_source"]:
@@ -180,6 +189,9 @@ def source_changes(t, plan):
         hits = rows_where(t, j, lambda x: _num(x) is not None)
         if hits:
             lines.append(f"{c} 열 글자로 저장된 숫자 {len(hits)}칸을 숫자로 바꿈 ({spots(col_letter(t.region.Column + j), [r for r, _ in hits])})")
+    for a in plan["to_values"]:
+        if ADDRESS.match(a.upper()):
+            lines.append(f"{value_range(t.ws, a).Address.replace('$', '')}의 수식을 지금 보이는 값으로 바꿈(수식은 없어짐)")
     if not plan["new_sheet"]:
         if rebuilds(t, plan):
             lines.append(f"기존 표 {t.region.Address.replace('$', '')}를 비우고 새로 씀(수식 결과 표라 남은 칸이 새 결과를 막음)")
@@ -609,6 +621,15 @@ def _execute(t, plan, stage, progress=None):
         for pt in pts:
             pt.PivotCache().Refresh()
         done.append("→ 이 값을 쓰는 수식은 다시 계산" + (f", 피벗 {len(pts)}개 새로고침" if pts else ""))
+
+    stage[0] = "값으로 바꾸기"
+    for a in plan["to_values"]:
+        if not plan["edit_source"]:
+            raise PlanError("원본 수정 지시가 없어 수식을 값으로 바꾸지 않았습니다.")
+        progress(f"{stage[0]}: {a}")
+        r = value_range(ws, a)
+        r.Value2 = r.Value2  # 클립보드를 쓰지 않음(사용자가 복사해 둔 내용을 지우지 않게). 표시 형식은 칸에 남음
+        done.append(f"원본 수정: {r.Address.replace('$', '')}의 수식을 값으로 바꿈({r.Count:,}칸)")
 
     # 필터를 먼저 걸면 Excel이 보이는 행만 정렬하므로 정렬이 먼저
     stage[0] = "정렬"

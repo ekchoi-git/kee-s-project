@@ -69,6 +69,7 @@ PLAN_SCHEMA = _obj({
     "overwrite": {"type": "boolean"},
     "edit_source": {"type": "boolean"},
     "to_number": _strs,
+    "to_values": _strs,
     "filters": {"type": "array", "items": _obj({
         "column": _str,
         "op": {"type": "string", "enum": ["=", "<>", ">", ">=", "<", "<=", "contains", "begins", "blank", "notblank", "top_items"]},
@@ -116,6 +117,7 @@ SYSTEM = """너는 Windows Excel 작업 도우미의 계획 담당이다. 사용
 - 전년 대비 증가율처럼 비교할 이전 값이 없는 첫 항목(첫 해 등)은 0이 아니라 빈칸("")으로 둔다. 이전 값이 0이거나 비어 있을 때도 빈칸.
 - formats: 숫자를 다르게 '보이게' 하는 요청(예: "1000원 단위로 표기", "천원 단위", "백만 단위", "소수점 둘째 자리", "% 로")은 값을 바꾸지 않고 표시 형식으로 한다. address는 그 칸 범위(원본 표 안이어도 된다, 값·수식은 그대로), format은 Excel 영문 형식 코드: 1,000 단위 "#,##0,", 1,000,000 단위 "#,##0,,", 소수 둘째 자리 "#,##0.00", 백분율 "0.0%". 이때 writes로 새 표를 만들지 않고 edit_source는 false다. summary에 '실제 값은 그대로이고 보이는 형식만 바뀐다'고 적는다. 표시 형식 요청이 아니면 빈 배열.
 - highlights: 조건에 맞는 칸을 색으로 표시하라는 요청(예: "숫자가 아닌 칸을 노란색으로", "100 이상은 빨간색으로")은 조건부 서식으로 한다. address는 색을 칠할 범위(원본 표 안이어도 된다, 값은 그대로, 머리글 행은 빼고 데이터 행만), formula는 그 범위 왼쪽 위 칸 기준 상대 참조로 쓴 TRUE/FALSE 수식(예: address "C2:H501"이면 C2를 기준으로 =AND(C2<>"",NOT(ISNUMBER(C2)))), color는 색 이름. 한 행 전체를 칠하려면 열만 고정한다(예: address "A2:H501", formula =$D2>=100). 이때 edit_source는 false, writes로 표시용 표를 따로 만들지 않는다. 색 표시 요청이 아니면 빈 배열.
+- to_values: 수식 결과를 값으로 고정하라는 요청("값으로 붙여넣기", "수식 없애고 값만", "텍스트나 숫자로 붙여")이면 그 범위 주소들(펼쳐진 수식은 시작 칸, 예: "A1"; 일반 수식이면 범위, 예: "I2:I877"), 아니면 빈 배열. edit_source=true로 바로 계획하고(실행 전에 프로그램이 확인 버튼을 띄우므로 action "ask"로 묻지 않는다) writes로 값을 만들지 않는다. 값은 프로그램이 지금 보이는 결과를 그대로 읽어 같은 자리에 쓴다.
 - to_number: 사용자가 글자로 저장된 숫자를 숫자로 바꾸라고 하면 그 열 이름들(edit_source=true 필요), 아니면 빈 배열. 바꿀 값은 프로그램이 원본에서 읽어 바꾸므로 writes로 만들지 않는다.
 - 여러 칸에 다른 글자를 쓰려면(머리글 등) 칸마다 따로 쓰거나, 첫 칸 주소에 탭으로 구분한 한 줄을 준다(예: address "A1", content "회사명\\t금액").
 - 글자에서 괄호로 둘러싼 부분([쿠팡], [] 등)을 지우라고 하면 한 칸에 여러 개 있어도 모두 지운다(첫 번째만 지우는 REPLACE 한 번은 쓰지 않는다). 검증된 방식(B2 기준, 범위에 채움): =TRIM(REDUCE(B2,SEQUENCE(MAX(1,LEN(B2)-LEN(SUBSTITUTE(B2,"[","")))),LAMBDA(s,i,IFERROR(REPLACE(s,FIND("[",s),FIND("]",s,FIND("[",s))-FIND("[",s)+1,""),s)))). 소괄호 ( )면 "[" "]"를 "(" ")"로 바꾼다. 동적 배열 함수를 지원하지 않는 Excel이면 SUBSTITUTE·REPLACE를 괄호 수만큼 겹쳐 쓴다.

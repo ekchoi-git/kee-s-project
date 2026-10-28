@@ -22,7 +22,7 @@ SRC = "'가격'!$A$2:$F$11"
 
 
 def plan(name, writes):
-    return {"action": "change", "summary": "", "question": None, "overwrite": False, "edit_source": False, "to_number": [],
+    return {"action": "change", "summary": "", "question": None, "overwrite": False, "edit_source": False, "to_number": [], "to_values": [],
             "filters": [], "sorts": [], "new_sheet": name, "formats": [], "highlights": [], "pivot": None, "classify": None,
             "writes": [{"address": a, "content": c} for a, c in writes]}
 
