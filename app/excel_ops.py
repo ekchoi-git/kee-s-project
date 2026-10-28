@@ -116,11 +116,16 @@ def errors_in(values):
     return found
 
 
+NUM_START = set("0123456789-+.(△")  # 숫자로 읽힐 수 있는 글자의 첫 글자: '가락' 같은 글자를 float() 예외 없이 바로 거름
+
+
 def _num(v):
     """글자로 저장된 숫자와 (△151) 같은 음수 표기면 그 값, 아니면 None."""
     if not isinstance(v, str):
         return None
     cleaned = v.strip().replace(",", "")
+    if not cleaned or cleaned[0] not in NUM_START:
+        return None
     negative = re.fullmatch(r"(?:\(\s*△\s*(\d+(?:\.\d+)?)\s*\)|△\s*(\d+(?:\.\d+)?))", cleaned)
     if negative:
         return -float(negative.group(1) or negative.group(2))
@@ -146,10 +151,12 @@ def text_numbers(t, j):
     return [(t.region.Row + i, x) for i, (x,) in enumerate(v) if i and _num(x) is not None]
 
 
-def bad_text(t, j):
-    """대부분 날짜·숫자인 열에 섞인, 숫자로도 읽을 수 없는 글자 칸(예: '날짜미상', '2023/02/30'). YEAR·SUM에서 오류나 누락이 된다."""
-    v = t.region.Columns(j + 1).Value2
-    v = v if isinstance(v, tuple) else ((v,),)
+def bad_text(t, j, v=None):
+    """대부분 날짜·숫자인 열에 섞인, 숫자로도 읽을 수 없는 글자 칸(예: '날짜미상', '2023/02/30'). YEAR·SUM에서 오류나 누락이 된다.
+    v: 이미 읽은 그 열 값(머리글 포함). 없으면 Excel에서 읽는다."""
+    if v is None:
+        v = t.region.Columns(j + 1).Value2
+        v = v if isinstance(v, tuple) else ((v,),)
     vals = [x for (x,) in v[1:] if not blank(x)]
     nums = sum(1 for x in vals if isinstance(x, (int, float)) and not isinstance(x, bool))
     if nums * 2 <= len(vals):
@@ -316,7 +323,7 @@ def numeric_text(values):
     """숫자처럼 보이지만 글자로 저장된 칸 수. 정렬·필터에서 숫자로 취급되지 않는다."""
     n = 0
     for (v,) in values:
-        if isinstance(v, str):
+        if isinstance(v, str) and v.strip()[:1] in NUM_START:
             try:
                 float(v.replace(",", ""))
                 n += 1
@@ -459,7 +466,7 @@ class Target:
             col = [(row[j],) for row in v]
             blank = sum(1 for (x,) in col if x is None or (isinstance(x, str) and not x.strip()))
             text_num = numeric_text(col)
-            junk = bad_text(self, j)
+            junk = bad_text(self, j, [(h,)] + col)
             junk = junk and f"날짜·숫자가 아닌 글자 {len(junk)}개({spots(col_letter(self.region.Column + j), [r for r, _ in junk])})"
             if blank or text_num or junk:
                 notes.append(f"{h}: " + ", ".join(p for p in (blank and f"빈 칸 {blank}개", text_num and f"숫자처럼 보이는 글자 {text_num}개", junk) if p))
@@ -495,7 +502,8 @@ class Target:
 def first_block(ws):
     """위에서부터 훑어 처음 만나는 2행 이상 이어진 범위. 맨 위 제목 한 줄은 건너뛴다. 없으면 A1의 범위."""
     used = ws.UsedRange
-    v = used.Value2
+    # shortcut: 위쪽 200행 안에서 시작하는 표만 찾음, 표가 그보다 아래에서 시작하는 시트가 생기면 늘릴 것
+    v = ws.Range(used.Cells(1, 1), used.Cells(min(used.Rows.Count, 200), used.Columns.Count)).Value2
     v = v if isinstance(v, tuple) else ((v,),)
     seen = []
     for i, row in enumerate(v):
@@ -545,7 +553,8 @@ def _fingerprint(ws):
     # 컬렉션을 for로 돌면 Excel이 바쁠 때 pywin32가 TypeError로 바꿔 버려 재시도가 안 되므로 번호로 꺼냄
     los = [ws.ListObjects(i) for i in range(1, ws.ListObjects.Count + 1)]
     filt = ws.AutoFilterMode, [lo.AutoFilter.FilterMode if lo.AutoFilter else None for lo in los]
-    raw = repr((r.Address, r.Formula2, r.Value2, filt, ws.PivotTables().Count,
+    # Formula2만 봄: 직접 입력한 값·수식 수정은 모두 여기 잡힘. 계산 결과(Value2)까지 읽으면 큰 시트에서 두 배 느림
+    raw = repr((r.Address, r.Formula2, filt, ws.PivotTables().Count,
                 [ws.Parent.Worksheets(i).Name for i in range(1, ws.Parent.Worksheets.Count + 1)]))
     return hashlib.sha256(raw.encode()).hexdigest()
 
