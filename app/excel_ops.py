@@ -739,6 +739,8 @@ def _execute(t, plan, stage, progress=None):
             detail = ", ".join(f"{k} {v}칸" for k, v in errs.items())
             raise FormulaError(f"수식이 오류를 냈습니다({detail}). 결과 칸이 모두 오류이거나 지원하지 않는 함수, "
                                "결과가 들어갈 자리가 막혀 있을 수 있습니다." + "".join(f"\n  {b}" for b in broken))
+        for r in ranges:
+            carry_formats(t, r.SpillingToRange if r.Count == 1 and dyn and r.HasSpill else r)
         if out_ws is not ws:
             out_ws.Columns.AutoFit()
             ws.Activate()
@@ -890,6 +892,25 @@ def inherit_format(t, out):
     if o_left <= right + 1 <= o_right:  # 행별 합계 열(과 아래 모서리): 마지막 데이터 열의 형식
         for row in range(max(top, o_top), min(bottom + 1, o_bottom) + 1):
             copy(ws.Cells(min(row, bottom), right), row, right + 1)
+
+
+def carry_formats(t, out):
+    """원본 행을 뽑아 온 결과(FILTER·SORT·VSTACK 등)는 머리글이 같은 원본 열의 표시 형식(날짜·통화 등)을 이어받는다.
+    (값만 오므로 안 하면 날짜가 45901 같은 숫자로 보임) 머리글은 결과 바로 윗줄이나 결과 첫 줄에서 찾고, 이미 형식이 있는 칸은 그대로."""
+    src = {h: t.region.Cells(2, j + 1).NumberFormat for j, h in enumerate(t.headers) if h}
+    general = {"General", "G/표준", t.wb.Styles("Normal").NumberFormat}
+    ws, bottom = out.Worksheet, out.Row + out.Rows.Count - 1
+    for k in range(out.Columns.Count):
+        c = out.Column + k
+        above = ws.Cells(out.Row - 1, c).Text if out.Row > 1 else ""
+        first = ws.Cells(out.Row, c).Text
+        top = out.Row if above in src else out.Row + 1 if first in src else None
+        if top is None or top > bottom:
+            continue
+        fmt = src[above if top == out.Row else first]
+        cells = ws.Range(ws.Cells(top, c), ws.Cells(bottom, c))
+        if fmt not in general and cells.Cells(1, 1).NumberFormat in general:
+            cells.NumberFormat = fmt
 
 
 def new_sheet(t, name):
