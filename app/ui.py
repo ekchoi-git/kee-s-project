@@ -86,12 +86,12 @@ class KeyDialog(QDialog):
         self.setWindowTitle("AI API 키")
         self.setMinimumWidth(420)
         now = ai.current_key()
-        info = QLabel(f"현재 키: {ai.masked(now) if now else '없음'}\n"
+        info = QLabel(f"현재 키: {f'{ai.masked(now)} ({ai.provider(now)})' if now else '없음'}\n"
                       "입력한 키는 이 PC의 Windows 자격 증명 관리자에 암호화되어 저장됩니다.")
         info.setWordWrap(True)
         self.edit = QLineEdit()
         self.edit.setEchoMode(QLineEdit.Password)
-        self.edit.setPlaceholderText("sk-로 시작하는 OpenAI API 키")
+        self.edit.setPlaceholderText("OpenAI 또는 Claude API 키")
         self.msg = QLabel("")
         self.msg.setWordWrap(True)
         save, remove, cancel = QPushButton("확인 후 저장"), QPushButton("저장된 키 삭제"), QPushButton("닫기")
@@ -114,7 +114,7 @@ class KeyDialog(QDialog):
         if not k:
             self.msg.setText("키를 입력해주세요.")
             return
-        self.msg.setText("OpenAI에 접속해 키를 확인하는 중…")
+        self.msg.setText(f"{ai.provider(k)}에 접속해 키를 확인하는 중…")
         QApplication.processEvents()
         try:
             ai.check_key(k)
@@ -680,7 +680,7 @@ class Window(QWidget):
 
     def show_key(self):
         k = ai.current_key()
-        self.key_btn.setToolTip(f"현재 키: {ai.masked(k)}" if k else "API 키를 입력해주세요")
+        self.key_btn.setToolTip(f"현재 키: {ai.masked(k)} ({ai.provider(k)})" if k else "API 키를 입력해주세요")
 
     def edit_key(self):
         if KeyDialog(self).exec():
@@ -743,7 +743,7 @@ class Window(QWidget):
         except Exception as e:
             self.say(f"'{c['column']}' 열을 읽지 못했습니다. {excel_error(e)}", "err")
             return
-        self.set_busy(f"'{c['column']}' 열의 설명을 OpenAI로 보내 분류하는 중…")
+        self.set_busy(f"'{c['column']}' 열의 설명을 {ai.provider(ai.current_key())}로 보내 분류하는 중…")
         client = self.planner.client
 
         def work():

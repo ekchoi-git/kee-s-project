@@ -2,7 +2,7 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
 
-from .ai import MODEL, _obj, _str
+from .ai import _obj, _str, ask
 
 CHECK = "확인 필요"
 FAILED = "분류 실패"
@@ -24,11 +24,7 @@ CLASSIFY_SYSTEM = """너는 Excel 행 분류 담당이다. 각 텍스트를 주�
 
 
 def _ask(client, system, user, schema):
-    r = client.chat.completions.create(
-        model=MODEL, messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-        response_format={"type": "json_schema", "json_schema": {"name": "out", "strict": True, "schema": schema}},
-    )
-    return json.loads(r.choices[0].message.content), r.usage.total_tokens
+    return ask(client, system, [{"role": "user", "content": user}], schema)
 
 
 def infer_categories(client, texts, request, criteria):
@@ -121,5 +117,5 @@ def report(res, values, loc):
         lines.append(f"{CHECK} {counts[CHECK]:,}건 (노란색 표시)")
     if res["failed"]:
         lines.append(f"⚠ {FAILED} {res['failed']:,}건 (빨간색 표시). 일부 AI 응답이 실패했습니다. 다시 분류하라고 하면 재시도합니다.")
-    lines.append(f"서로 다른 설명 {res['sent']:,}건을 OpenAI로 보냄 · AI 호출 {res['calls']}회")
+    lines.append(f"서로 다른 설명 {res['sent']:,}건을 AI로 보냄 · AI 호출 {res['calls']}회")
     return lines

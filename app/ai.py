@@ -1,5 +1,6 @@
-"""ChatGPT 연결: 한국어 요청을 정해진 형식(JSON)의 작업 계획으로 바꾼다. 실행은 하지 않는다."""
+"""AI 연결(OpenAI·Claude): 한국어 요청을 정해진 형식(JSON)의 작업 계획으로 바꾼다. 실행은 하지 않는다."""
 import json, os, sys, winreg
+import anthropic
 import openai
 import win32cred
 from openai import OpenAI
@@ -11,6 +12,44 @@ if DEV:
     load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"), override=True)
 
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.6-terra")
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-5-5")
+KEY_ENVS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+
+
+def is_claude(k):
+    return k.startswith("sk-ant-")
+
+
+def provider(k):
+    """키 앞부분으로 고른 AI 회사 이름(화면 표시용)."""
+    return "Claude" if k and is_claude(k) else "OpenAI"
+
+
+def connect(k, timeout=60, max_retries=2):
+    if is_claude(k):  # Claude는 답 전에 생각하는 시간이 있어 기다리는 시간을 넉넉히
+        return anthropic.Anthropic(api_key=k, timeout=timeout * 2, max_retries=max_retries)
+    return OpenAI(api_key=k, timeout=timeout, max_retries=max_retries)
+
+
+def ask(client, system, messages, schema):
+    """정해진 JSON 형식으로 답을 받는다(OpenAI·Claude 공통). (답, 토큰 수)"""
+    if isinstance(client, anthropic.Anthropic):
+        r = client.beta.messages.create(
+            model=CLAUDE_MODEL, max_tokens=16000, system=system, messages=messages,
+            output_config={"effort": "medium", "format": {"type": "json_schema", "schema": schema}},
+            betas=["server-side-fallback-2026-07-01"], fallbacks="default",  # 안전 검사에 걸리면 서버가 다른 Claude 모델로 다시 시도
+        )
+        if r.stop_reason == "refusal":
+            raise RuntimeError("AI가 이 요청을 거절했습니다. 요청 문구를 바꿔 다시 시도해주세요.")
+        if r.stop_reason == "max_tokens":
+            raise RuntimeError("AI 답이 너무 길어 잘렸습니다. 요청을 나눠서 다시 시도해주세요.")
+        text = next(b.text for b in r.content if b.type == "text")
+        return json.loads(text), r.usage.input_tokens + r.usage.output_tokens
+    r = client.chat.completions.create(
+        model=MODEL, messages=[{"role": "system", "content": system}, *messages],
+        response_format={"type": "json_schema", "json_schema": {"name": "out", "strict": True, "schema": schema}},
+    )
+    return json.loads(r.choices[0].message.content), r.usage.total_tokens
 
 
 def _obj(props):
@@ -108,7 +147,7 @@ def saved_key():
 
 
 def save_key(k):
-    win32cred.CredWrite({"Type": win32cred.CRED_TYPE_GENERIC, "TargetName": CRED, "UserName": "openai",
+    win32cred.CredWrite({"Type": win32cred.CRED_TYPE_GENERIC, "TargetName": CRED, "UserName": provider(k).lower(),
                          "CredentialBlob": k, "Persist": win32cred.CRED_PERSIST_LOCAL_MACHINE}, 0)
 
 
@@ -122,7 +161,7 @@ def delete_key():
 def check_key(k):
     """저장 전에 실제로 접속해 키와 모델 사용 권한을 확인. 실패하면 안내 문구를 담은 예외."""
     try:
-        OpenAI(api_key=k, timeout=20, max_retries=0).models.retrieve(MODEL)
+        connect(k, timeout=20, max_retries=0).models.retrieve(CLAUDE_MODEL if is_claude(k) else MODEL)
     except Exception as e:
         raise RuntimeError(explain(e) or f"키 확인 실패: {e}")
 
@@ -133,12 +172,17 @@ def masked(k):
 
 def current_key():
     """개발 중: .env(환경 변수) → 화면에서 저장한 키. 배포 exe: 화면에서 저장한 키 → 환경 변수. 없으면 None."""
-    env = os.environ.get("OPENAI_API_KEY")
+    env = next((os.environ[n] for n in KEY_ENVS if os.environ.get(n)), None)
     k = (env or saved_key()) if DEV else (saved_key() or env)
     if not k:  # 프로그램을 켠 뒤에 넣은 키는 열린 창에 안 보이므로 사용자 환경 변수에서 직접 읽음
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as h:
-                k = winreg.QueryValueEx(h, "OPENAI_API_KEY")[0]
+                for n in KEY_ENVS:
+                    try:
+                        k = winreg.QueryValueEx(h, n)[0]
+                        break
+                    except OSError:
+                        pass
         except OSError:
             pass
     return k.strip() if k else None
@@ -153,12 +197,13 @@ def api_key():
 
 def explain(e):
     """PRD FR-08: 실패 종류를 구분해 안내."""
-    if isinstance(e, openai.AuthenticationError): return "AI 인증 실패: API 키를 확인해주세요."
-    if isinstance(e, openai.PermissionDeniedError): return "AI 권한 없음: 이 키로 해당 모델을 쓸 수 없습니다."
-    if isinstance(e, openai.RateLimitError): return "AI 요청 제한 또는 사용 한도 초과입니다. 잠시 후 다시 시도해주세요."
-    if isinstance(e, openai.APITimeoutError): return "AI 응답 시간 초과입니다. 다시 시도해주세요."
-    if isinstance(e, openai.APIConnectionError): return "AI 서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요."
-    if isinstance(e, openai.NotFoundError): return f"AI 모델 '{MODEL}'을 찾을 수 없습니다."
+    if isinstance(e, (openai.AuthenticationError, anthropic.AuthenticationError)): return "AI 인증 실패: API 키를 확인해주세요."
+    if isinstance(e, (openai.PermissionDeniedError, anthropic.PermissionDeniedError)): return "AI 권한 없음: 이 키로 해당 모델을 쓸 수 없습니다."
+    if isinstance(e, (openai.RateLimitError, anthropic.RateLimitError)): return "AI 요청 제한 또는 사용 한도 초과입니다. 잠시 후 다시 시도해주세요."
+    if isinstance(e, (openai.APITimeoutError, anthropic.APITimeoutError)): return "AI 응답 시간 초과입니다. 다시 시도해주세요."
+    if isinstance(e, (openai.APIConnectionError, anthropic.APIConnectionError)): return "AI 서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요."
+    if isinstance(e, (openai.NotFoundError, anthropic.NotFoundError)):
+        return f"AI 모델 '{CLAUDE_MODEL if isinstance(e, anthropic.NotFoundError) else MODEL}'을 찾을 수 없습니다."
     if isinstance(e, (json.JSONDecodeError, KeyError)): return "AI 응답을 해석하지 못했습니다. 다시 시도해주세요."
     return None
 
@@ -166,7 +211,7 @@ def explain(e):
 class Planner:
     def __init__(self):
         # 네트워크 재시도는 Excel 변경 전 단계라 안전함 (PRD FR-08)
-        self.client = OpenAI(api_key=api_key(), timeout=60, max_retries=2)
+        self.client = connect(api_key())
         self.history = []
         self.asking = None  # AI가 되묻기 시작한 요청의 기록 위치: 답이 길어져도 처음 요청이 잘려 나가지 않게
 
@@ -183,13 +228,8 @@ class Planner:
         start = max(len(self.history) - 8, 0)
         if self.asking is not None:
             start = min(start, self.asking)
-        msgs = [{"role": "system", "content": SYSTEM}, *self.history[start:],
-                {"role": "user", "content": f"[시트 정보]\n{sheet_info}\n\n[요청]\n{request}"}]
-        r = self.client.chat.completions.create(
-            model=MODEL, messages=msgs,
-            response_format={"type": "json_schema", "json_schema": {"name": "plan", "strict": True, "schema": PLAN_SCHEMA}},
-        )
-        plan = json.loads(r.choices[0].message.content)
+        msgs = [*self.history[start:], {"role": "user", "content": f"[시트 정보]\n{sheet_info}\n\n[요청]\n{request}"}]
+        plan, tokens = ask(self.client, SYSTEM, msgs, PLAN_SCHEMA)
         if plan["action"] != "ask":
             self.asking = None
         elif self.asking is None:
@@ -197,4 +237,4 @@ class Planner:
         # 시트 정보는 매번 새로 보내므로 기록에는 요청과 계획만 남겨 토큰을 아낀다
         self.history += [{"role": "user", "content": request},
                          {"role": "assistant", "content": json.dumps(plan, ensure_ascii=False)}]
-        return plan, r.usage.total_tokens
+        return plan, tokens

@@ -1,4 +1,5 @@
 pywin32
 PySide6
 openai
+anthropic
 python-dotenv
