@@ -25,6 +25,28 @@ CRITERIA = {
 }
 
 PIVOT_FUNC = {"sum": -4157, "count": -4112, "average": -4106, "max": -4136, "min": -4139}
+XL_TOP10_ITEMS = 3
+
+
+def top_items_count(value):
+    """Excel 상위 항목 필터의 개수. Excel 필터 대화상자와 같은 1~500 범위만 허용한다."""
+    value = str(value).strip()
+    if not re.fullmatch(r"[1-9]\d*", value):
+        return None
+    count = int(value)
+    return count if count <= 500 else None
+
+
+def apply_filter(region, field, op, value):
+    """필터 한 개를 적용하고 사용자에게 보여줄 조건 문구를 돌려준다."""
+    if op == "top_items":
+        count = top_items_count(value)
+        if count is None:
+            raise PlanError("상위 항목 필터의 개수는 1~500 사이 정수여야 합니다.")
+        region.AutoFilter(Field=field, Criteria1=str(count), Operator=XL_TOP10_ITEMS)
+        return f"상위 {count}개"
+    region.AutoFilter(Field=field, Criteria1=CRITERIA[op].format(value))
+    return f"{op} {value}".rstrip()
 
 
 def validate(plan, headers):
@@ -41,6 +63,9 @@ def validate(plan, headers):
         if not re.fullmatch(r"[A-Za-z]{0,3}", plan["classify"]["output"]):
             bad.append(f"'{plan['classify']['output']}'는 결과를 넣을 열 글자가 아닙니다.")
     bad += [f"'{c}' 열이 표에 없습니다." for c in dict.fromkeys(cols) if c not in headers]
+    for f in plan["filters"]:
+        if f["op"] == "top_items" and top_items_count(f["value"]) is None:
+            bad.append(f"'{f['value']}'는 상위 항목 필터에 쓸 수 있는 개수가 아닙니다. 1~500 사이 정수를 사용해주세요.")
     for w in plan["writes"]:
         if not ADDRESS.match(w["address"].upper()):
             bad.append(f"'{w['address']}'는 이 시트의 셀 주소가 아닙니다.")
@@ -89,11 +114,15 @@ def errors_in(values):
 
 
 def _num(v):
-    """글자로 저장된 숫자면 그 값, 아니면 None."""
+    """글자로 저장된 숫자와 (△151) 같은 음수 표기면 그 값, 아니면 None."""
     if not isinstance(v, str):
         return None
+    cleaned = v.strip().replace(",", "")
+    negative = re.fullmatch(r"(?:\(\s*△\s*(\d+(?:\.\d+)?)\s*\)|△\s*(\d+(?:\.\d+)?))", cleaned)
+    if negative:
+        return -float(negative.group(1) or negative.group(2))
     try:
-        return float(v.replace(",", ""))
+        return float(cleaned)
     except ValueError:
         return None
 
@@ -552,6 +581,7 @@ def _execute(t, plan, stage):
 
     # 원본 수정(사용자가 지시한 경우만): 이어지는 정렬·합계가 바뀐 숫자를 쓰도록 맨 먼저
     stage[0] = "숫자 변환"
+    converted = 0
     for c in plan["to_number"]:
         if not plan["edit_source"]:
             raise PlanError("원본 수정 지시가 없어 원본 값을 바꾸지 않았습니다.")
@@ -563,9 +593,13 @@ def _execute(t, plan, stage):
             if cell.NumberFormat == "@":
                 cell.NumberFormat = "General"  # 텍스트 서식이면 숫자를 넣어도 다시 글자가 됨
             cell.Value2 = _num(x)
-        done.append(f"원본 수정: '{c}' 열 글자로 저장된 숫자 {len(hits)}칸을 숫자로 바꿈"
-                    + (f" ({spots(col_letter(col), [r for r, _ in hits])}, {sum(_num(x) for _, x in hits):,.0f})" if hits else ""))
+        converted += len(hits)
+        if hits:
+            done.append(f"원본 수정: '{c}' 열 글자로 저장된 숫자 {len(hits)}칸을 숫자로 바꿈"
+                        + f" ({spots(col_letter(col), [r for r, _ in hits])}, {sum(_num(x) for _, x in hits):,.0f})")
     if plan["to_number"]:
+        if not converted:
+            raise PlanError("지정한 열에서 변환할 글자 숫자를 찾지 못해 원본을 바꾸지 않았습니다.")
         # 이 숫자를 쓰는 수식은 Excel이 다시 계산하지만 피벗은 새로고침해야 바뀐 값이 들어감
         pts = [pt for s in t.wb.Worksheets for pt in s.PivotTables()]
         for pt in pts:
@@ -591,7 +625,8 @@ def _execute(t, plan, stage):
         done.append("정렬: " + ", ".join(f"{s['column']} {'내림차순' if s['descending'] else '오름차순'}" for s in plan["sorts"]))
 
     # 원본 값은 바꾸지 않고, 숫자로 취급되지 않은 칸이 있으면 알림 (PRD 5장: 사용한 가정 표시)
-    for c in dict.fromkeys([s["column"] for s in plan["sorts"]] + [f["column"] for f in plan["filters"] if f["op"] in "<>=<=>="]):
+    numeric_ops = {"=", "<>", ">", ">=", "<", "<=", "top_items"}
+    for c in dict.fromkeys([s["column"] for s in plan["sorts"]] + [f["column"] for f in plan["filters"] if f["op"] in numeric_ops]):
         hits = text_numbers(t, idx[c] - 1)
         if hits:
             where = spots(col_letter(t.region.Column + idx[c] - 1), [r for r, _ in hits])
@@ -609,9 +644,8 @@ def _execute(t, plan, stage):
                 if len(same) == 1:
                     value = same[0]
                     done.append(f"임의 판단: '{f['value']}'은 '{value}'로 보고 걸렀습니다(띄어쓰기 차이).")
-        crit = CRITERIA[f["op"]].format(value)
-        t.region.AutoFilter(Field=idx[f["column"]], Criteria1=crit)
-        done.append(f"필터: {f['column']} {f['op']} {value}".rstrip())
+        condition = apply_filter(t.region, idx[f["column"]], f["op"], value)
+        done.append(f"필터: {f['column']} {condition}")
     if plan["filters"]:
         shown = int(xl.WorksheetFunction.Subtotal(103, t.region.Columns(1))) - 1
         if shown <= 0:  # 전부 숨기면 데이터가 사라진 것처럼 보이므로 걸지 않음(호출한 쪽이 되돌림)

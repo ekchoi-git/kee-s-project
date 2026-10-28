@@ -40,6 +40,11 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.build-venv*/
+.packaging-venv/
+dist-*/
+build-*/
+*.spec
 venv/
 env/
 

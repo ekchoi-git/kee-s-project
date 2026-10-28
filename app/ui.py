@@ -71,7 +71,7 @@ class FileDelegate(QStyledItemDelegate):
         text_rect = r.adjusted(38, 0, -36, 0)
         p.setPen(QColor("#1f1f1d"))
         f = QFont(opt.font)
-        f.setWeight(QFont.Medium)  # 콤보 칸은 굵게, 목록은 보통 굵기
+        f.setWeight(QFont.Normal)
         p.setFont(f)
         p.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft,
                    opt.fontMetrics.elidedText(idx.data(), Qt.ElideMiddle, text_rect.width()))
@@ -157,7 +157,7 @@ QPushButton:hover { background: #f3f4f6; }
 #send { background: #111827; color: white; border: none; }
 #composer { border: 1px solid #dcdad3; border-radius: 16px; background: #f5f4ef; }
 #ctx { background: transparent; }
-#ctx QComboBox { border: none; background: transparent; padding: 2px 4px; font-weight: bold; color: #1f1f1d; }
+#ctx QComboBox { border: none; background: transparent; padding: 2px 4px; font-size: 10pt; font-weight: normal; color: #1f1f1d; }
 #filelist { background: white; border: 1px solid #e8e6df; border-radius: 14px; padding: 4px; outline: 0; }
 #textbtn { border: none; background: transparent; color: #5f5e5a; padding: 2px 6px; font-size: 10pt; }
 #textbtn:hover { color: #1f1f1d; background: transparent; }
@@ -380,6 +380,11 @@ class Window(QWidget):
         self.status = QLabel("●")
         self.status.setObjectName("dot")
         self.file_combo = QComboBox()
+        file_font = self.file_combo.font()
+        file_font.setStyleName("Regular")
+        file_font.setWeight(QFont.Normal)
+        file_font.setPointSize(10)
+        self.file_combo.setFont(file_font)
         self.file_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.file_combo.currentIndexChanged.connect(lambda: self.update_sheet(force=True))
         self.file_combo.setItemDelegate(FileDelegate(self.file_combo))
@@ -895,6 +900,9 @@ def load_fonts():
         QFontDatabase.addApplicationFont(path)
     # 힌팅: 획을 픽셀 경계에 맞춰 작은 글자도 또렷하게(끄면 13px에서 흐려 보임). TTF여야 효과가 큼
     f = QApplication.font()
+    if "Pretendard" in QFontDatabase.families():
+        f.setFamily("Pretendard")
+        f.setStyleName("Medium")
     f.setHintingPreference(QFont.PreferFullHinting)
     f.setWeight(QFont.Medium)  # 본문 기본 굵기: Regular는 작은 글자에서 가늘어 보임
     QApplication.setFont(f)
@@ -902,9 +910,9 @@ def load_fonts():
 
 def main():
     app = QApplication([])
-    app.setWindowIcon(QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "celli-icon.png")))
+    app.setWindowIcon(QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "celly-icon.png")))
+    load_fonts()
     app.setStyleSheet(STYLE)
-    load_fonts()  # 스타일시트 뒤에: 먼저 하면 확인 창·목록 같은 별도 창의 힌팅이 기본값으로 돌아가 흐려짐
     win = Window()
     # Excel 옆에 나란히 보이도록 화면 오른쪽에 세로로 길게 붙인다
     geo = app.primaryScreen().availableGeometry()

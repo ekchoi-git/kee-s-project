@@ -67,7 +67,7 @@ PLAN_SCHEMA = _obj({
     "to_number": _strs,
     "filters": {"type": "array", "items": _obj({
         "column": _str,
-        "op": {"type": "string", "enum": ["=", "<>", ">", ">=", "<", "<=", "contains", "begins", "blank", "notblank"]},
+        "op": {"type": "string", "enum": ["=", "<>", ">", ">=", "<", "<=", "contains", "begins", "blank", "notblank", "top_items"]},
         "value": _str,
     })},
     "sorts": {"type": "array", "items": _obj({"column": _str, "descending": {"type": "boolean"}})},
@@ -128,6 +128,7 @@ SYSTEM = """너는 Windows Excel 작업 도우미의 계획 담당이다. 사용
 - 피벗은 새 시트에 만들어진다. 사용자가 피벗을 원하거나 피벗이 더 적합할 때 쓴다. 피벗도 글자로 저장된 숫자를 합계에 넣지 못한다.
 - summary에는 이 계획에 실제로 들어 있는 작업만 적는다. 계획에 없는 변환·수정을 했다고 쓰지 않는다.
 - filters의 value는 글자로 준다(숫자도 "100000000"처럼). blank/notblank는 value를 ""로.
+- 사용자가 특정 숫자 열의 상위 N건·가장 큰 N건·가장 높은 N건을 원본 표에서 필터로 보여달라고 하면 filters에 op "top_items", value는 건수(예: "5")를 쓴다. 임의로 N번째 값이나 비교 기준을 추측하지 않는다. 같은 열을 내림차순 sorts에도 넣어 가장 큰 값부터 보이게 한다.
 - classify: 텍스트 열의 의미를 읽고 행마다 범주를 붙이는 요청(분류·유형 구분)일 때만 채운다. column은 읽을 텍스트 열. categories는 사용자가 범주를 말한 경우 그 이름 그대로, 말하지 않았으면 빈 배열(프로그램이 데이터를 보고 정한다). criteria는 사용자가 말한 분류 기준(없으면 ""). output은 사용자가 결과를 넣을 열을 글자로 지정했을 때 그 열 글자(예: "J"), 지정하지 않았으면 "". overwrite는 사용자가 '덮어써'라고 명시했을 때만 true(열을 지정한 것만으로는 false). 결과는 표 오른쪽 새 열에 프로그램이 쓰므로 writes로 만들지 않고, summary에도 분류 결과 위치를 적지 않는다. 같은 범주로 다시 분류하라는 후속 요청도 classify로 한다.
 - 이전 대화의 결과를 가리키는 후속 요청("여기서", "방금 거")은 이전 계획을 참고한다.
 - 이전 결과의 실제 위치는 [시트 정보]의 '표 오른쪽에 이미 있는 내용'을 따른다. 결과가 펼쳐진 수식이면 그 펼쳐진 범위의 바로 아래·오른쪽 빈 칸에 쓰고, 행 수가 바뀌어도 맞도록 # 범위 참조(예: =SUM(J2#))를 쓴다.
