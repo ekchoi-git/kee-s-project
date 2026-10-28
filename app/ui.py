@@ -315,6 +315,7 @@ class Window(QWidget):
         self.suggest_btn = None
         self.sheet = None       # 지금 작업 대상 시트 개체
         self.sheet_key = None   # (파일, 시트 이름): 바뀌었을 때만 다시 읽기 위함
+        self.excel_active = None  # 마지막으로 본 Excel의 활성 파일: 바뀔 때만 따라가서 셀리에서 직접 고른 파일은 유지
 
         # 머리: 제목 + API KEY
         title = QLabel("셀리")
@@ -471,9 +472,9 @@ class Window(QWidget):
         pad.addWidget(self.bottombar)
         root.addLayout(pad)
 
-        # Excel에서 시트를 바꾸면 따라간다 (1초마다 확인, 바뀐 경우에만 다시 읽음)
+        # Excel에서 파일·시트를 바꾸면 따라간다 (1초마다 확인, 바뀐 경우에만 다시 읽음)
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_sheet)
+        self.timer.timeout.connect(lambda: (self.follow_active(), self.update_sheet()))
         self.timer.start(1000)
         self.refresh()
         self.show_key()
@@ -586,6 +587,23 @@ class Window(QWidget):
             self.status.setToolTip("Excel 연결됨")
         self.file_combo.blockSignals(False)
         self.update_sheet(force=True)
+
+    def follow_active(self):
+        """Excel에서 다른 파일 창으로 옮기면 그 파일을 대상으로 잡는다. 안 그러면 보고 있는 파일이 아닌 이전 파일에 작업한다."""
+        if not self.files or self.busy_msg:
+            return
+        try:
+            # shortcut: 첫 파일의 Excel 프로세스만 봄, Excel을 여러 개 띄워 쓰는 경우가 생기면 프로세스별로 확인
+            name = self.files[0]["wb"].Application.ActiveWorkbook.Name
+        except Exception:
+            return  # 셀 편집 중·Excel 닫힘: 다음 확인 때 다시
+        if name == self.excel_active:
+            return
+        self.excel_active = name
+        if name not in [f["name"] for f in self.files]:
+            self.refresh()  # 새로 연 파일
+        if name in [f["name"] for f in self.files] and name != self.file_combo.currentText():
+            self.file_combo.setCurrentText(name)  # currentIndexChanged → update_sheet(force=True)
 
     def update_sheet(self, force=False):
         """선택한 파일에서 지금 열려 있는 시트를 작업 대상으로 잡는다."""
