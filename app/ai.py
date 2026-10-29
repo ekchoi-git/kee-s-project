@@ -1,18 +1,11 @@
 """AI 연결(OpenAI·Claude): 한국어 요청을 정해진 형식(JSON)의 작업 계획으로 바꾼다. 실행은 하지 않는다."""
-import json, os, sys, winreg
+import json, sys
 import openai
 import win32cred
 from openai import OpenAI
 
-# 개발 중(소스로 실행)에만 프로젝트 폴더의 .env를 읽는다. 화면에서 저장한 키가 있으면 그게 먼저다.
-DEV = not getattr(sys, "frozen", False)
-if DEV:
-    from dotenv import load_dotenv
-    load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"), override=True)
-
-MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.6-terra")
-CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5")  # Opus 대비 토큰 단가 절반
-KEY_ENVS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+MODEL = "gpt-5.6-terra"
+CLAUDE_MODEL = "claude-sonnet-5-5"  # Opus 대비 토큰 단가 절반
 
 
 def is_claude(k):
@@ -179,19 +172,8 @@ def masked(k):
 
 
 def current_key():
-    """화면에서 저장한 키 → 환경 변수(.env). 화면에서 바꾼 키가 늘 이긴다. 없으면 None."""
-    k = saved_key() or next((os.environ[n] for n in KEY_ENVS if os.environ.get(n)), None)
-    if not k:  # 프로그램을 켠 뒤에 넣은 키는 열린 창에 안 보이므로 사용자 환경 변수에서 직접 읽음
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as h:
-                for n in KEY_ENVS:
-                    try:
-                        k = winreg.QueryValueEx(h, n)[0]
-                        break
-                    except OSError:
-                        pass
-        except OSError:
-            pass
+    """화면(API 키 창)에서 저장한 키만 쓴다. 없으면 None."""
+    k = saved_key()
     return k.strip() if k else None
 
 

@@ -131,8 +131,7 @@ class KeyDialog(QDialog):
     def remove(self):
         ai.delete_key()
         self.show_now()
-        # 저장 키를 지워도 환경 변수(.env·Windows 사용자 환경 변수) 키가 있으면 그 키를 계속 쓴다
-        self.msg.setText("저장된 키를 삭제했습니다." + (" 환경 변수(.env 또는 Windows 사용자 환경 변수)에 있는 키는 계속 쓰입니다." if ai.current_key() else ""))
+        self.msg.setText("저장된 키를 삭제했습니다.")
 
 
 class Bridge(QObject):

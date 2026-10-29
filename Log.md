@@ -125,3 +125,9 @@
 - 원인 1: 키 창의 '현재 키' 글자를 창을 열 때만 만들고 삭제 후 다시 그리지 않음 → `KeyDialog.show_now()`로 삭제 뒤 새로 표시.
 - 원인 2: 이 PC는 같은 키(sk-…PLkA)가 Windows 사용자 환경 변수 `OPENAI_API_KEY`에도 있어서, 저장 키를 지워도 `current_key()`가 그 키를 씀(정상 동작). 삭제 후 환경 변수 키가 남아 있으면 그렇게 안내.
 - offscreen Qt + 가짜 키로 확인(실제 자격 증명은 안 건드림).
+
+## 2026-10-29 키는 API 키 창에서만
+- 사용자 요청: 배포에서 안 쓰는 .env·Windows 사용자 환경 변수 키 읽기를 모두 없앰. `ai.current_key()`는 자격 증명 관리자에 저장한 키만 반환.
+- 삭제: `load_dotenv`·`DEV`·`KEY_ENVS`·winreg 환경 변수 읽기, `.env.example`, requirements의 `python-dotenv`. 모델 이름도 환경 변수 덮어쓰기 없이 고정(`MODEL`, `CLAUDE_MODEL`).
+- 주의: 실제 AI를 부르는 e2e 테스트도 이제 화면에서 저장한 키가 있어야 돌아감. 이 PC의 사용자 환경 변수 `OPENAI_API_KEY`는 셀리가 더는 안 읽음(지울지는 사용자 판단).
+- 확인: offscreen Qt로 키 창(삭제 후 '없음' 표시), `test_claude_provider` 통과.
