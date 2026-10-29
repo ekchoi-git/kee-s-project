@@ -179,3 +179,10 @@
 - 원인: exe에 `win32timezone`이 안 묶임. `win32cred.CredRead`가 결과의 날짜(LastWritten)를 만들 때 이 모듈을 몰래 불러오는데 없어서 `ModuleNotFoundError` → `saved_key()`의 `except`가 삼켜 None. 저장(CredWrite)은 됐음. 소스 실행에선 문제 없어서 못 봤고, 전에는 환경 변수 키가 가려 줬음.
 - 수정: `app/ai.py`에서 `import win32timezone`을 직접 해 PyInstaller가 묶게 함(Celly.spec은 git에 없어 코드에 둠).
 - 확인: 콘솔용 시험 exe로 수정 전 `ModuleNotFoundError` 재현, 수정 후 저장 키 읽힘. Celly.exe 다시 빌드해 바탕화면 교체(15:53), 새로 켬. 키는 이미 자격 증명 관리자에 저장돼 있어 다시 넣을 필요 없음.
+
+## 2026-10-29 읽기 전용 파일도 작업 (main만, company 브랜치는 나중에)
+- 전에는 `Target.check()`가 `wb.ReadOnly`면 거부. Excel은 읽기 전용 문서도 화면에선 고칠 수 있고 덮어쓰기 저장만 막으므로 거부를 없앰.
+- 안내: 대상 표시줄 "⚠ 읽기 전용 파일: 작업은 되지만 원래 파일에 저장되지 않습니다.", 작업 결과 끝에 "'다른 이름으로 저장'을 해주세요".
+- 그대로 막는 것: 보호된 시트(주인이 건 보호). 제한된 보기(노란 막대) 파일은 Excel이 목록에 안 보여 줌 → 사용자가 '편집 사용'을 눌러야 함.
+- 확인: 실제 Excel에서 `ReadOnly=True`로 연 파일에 수식 쓰기·되돌리기 정상, 디스크의 원본 파일은 바뀌지 않음.
+- **company 브랜치에는 아직 반영 안 함**(사용자 지시: 나중에).

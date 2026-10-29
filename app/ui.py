@@ -644,7 +644,7 @@ class Window(QWidget):
         if s["protected"]:
             warn += "\n⚠ 보호된 시트라 수정할 수 없습니다."
         if s["readonly"]:
-            warn += "\n⚠ 읽기 전용 파일이라 수정할 수 없습니다."
+            warn += "\n⚠ 읽기 전용 파일: 작업은 되지만 원래 파일에 저장되지 않습니다."
         self.show_target(f"작업 시트: {ws.Name}{warn}")
 
     def send(self):
@@ -800,6 +800,8 @@ class Window(QWidget):
                 where = ", ".join(f"{s} {k}칸" for _, s, k in cols)
                 action = (f"원본 글자 숫자 {n}칸을 숫자로 바꾸고 다시 계산", lambda: self.convert(ws, [c for c, _, _ in cols]),
                           f"바꿀 칸: {where}")
+            if t.wb.ReadOnly:  # Excel은 읽기 전용 문서도 화면에선 고칠 수 있고 덮어쓰기 저장만 막음
+                text += "\n⚠ 읽기 전용 파일이라 원래 파일에는 저장되지 않습니다. 결과를 남기려면 '다른 이름으로 저장'을 해주세요."
             self.say(text + tail, action=action)
         except FormulaError as e:
             if retry:

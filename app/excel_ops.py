@@ -372,8 +372,6 @@ class Target:
         self.headers = [str(h) if h is not None else "" for h in (row1[0] if isinstance(row1, tuple) else (row1,))]
 
     def check(self):
-        if self.wb.ReadOnly:
-            raise PlanError("읽기 전용 문서라 작업하지 않습니다. 편집 가능한 상태로 열어주세요.")
         if self.ws.ProtectContents:
             raise PlanError("보호된 시트라 작업하지 않습니다. 보호는 직접 해제해주세요.")
         if self.region.MergeCells is not False:
