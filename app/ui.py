@@ -145,7 +145,7 @@ QWidget { font-family: 'Pretendard', 'Malgun Gothic'; font-size: 11pt; backgroun
 #title { font-size: 14pt; font-weight: bold; color: #1f1f1d; }
 #head { border-bottom: 1px solid #e8e6df; }
 #hello { font-size: 12pt; color: #1f1f1d; }
-#hint { color: #888780; font-size: 10pt; }
+#hint { color: #5f5e5a; font-size: 10pt; }
 #pill { border: 1px solid #dcdad3; border-radius: 17px; padding: 7px 16px; min-height: 20px; background: white; color: #1f1f1d; }
 #pill:hover { background: #f5f4ef; }
 #busy { color: #b4532a; padding: 0 4px; }
@@ -386,7 +386,6 @@ class Window(QWidget):
         self.status.setObjectName("dot")
         self.file_combo = QComboBox()
         file_font = self.file_combo.font()
-        file_font.setStyleName("Regular")
         file_font.setWeight(QFont.Normal)
         file_font.setPointSize(10)
         self.file_combo.setFont(file_font)
@@ -910,14 +909,14 @@ class Window(QWidget):
 
 def load_fonts():
     """함께 넣어 둔 프리텐다드를 셀리 안에서만 쓰도록 불러온다(PC에 설치 불필요).
-    실패해도 STYLE의 다음 글꼴인 맑은 고딕으로 보인다. exe에는 app/fonts 폴더를 함께 넣어야 한다."""
+    실패해도 STYLE의 다음 글꼴인 맑은 고딕으로 보인다. exe에는 app/fonts 폴더를 함께 넣어야 한다.
+    굵기는 setWeight로만 정한다(setStyleName은 굵게 지정한 제목까지 같은 굵기로 묶어 버림)."""
     for path in glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "*.ttf")):
         QFontDatabase.addApplicationFont(path)
     # 힌팅: 획을 픽셀 경계에 맞춰 작은 글자도 또렷하게(끄면 13px에서 흐려 보임). TTF여야 효과가 큼
     f = QApplication.font()
     if "Pretendard" in QFontDatabase.families():
         f.setFamily("Pretendard")
-        f.setStyleName("Medium")
     f.setHintingPreference(QFont.PreferFullHinting)
     f.setWeight(QFont.Medium)  # 본문 기본 굵기: Regular는 작은 글자에서 가늘어 보임
     QApplication.setFont(f)

@@ -155,4 +155,9 @@
 ## 2026-10-29 FreeType 글자 렌더링 + exe 다시 빌드
 - `ui.main()`에서 `QT_QPA_PLATFORM=windows:fontengine=freetype`(이미 설정돼 있으면 그대로). 100% 배율에서 Pretendard 색 번짐 5,659px → 178px.
 - 빌드: `.packaging-venv/Scripts/pyinstaller --noconfirm Celly.spec` (이 venv만 anthropic·PySide6 6.8.3이 다 있음). `dist/Celly.exe`를 바탕화면 `Celly.exe`로 복사(15:26). 실행해서 창 크기(작업 영역 안)·글자 확인.
-- 주의: 이 빌드에는 `app/ui.py`의 codex 미커밋 글꼴 변경(STYLE에서 맑은 고딕 대체 제거, `setStyleName("Medium")` 제거, #hint 색 진하게)이 함께 들어감. 커밋은 안 함 — 살릴지 버릴지 사용자 결정.
+- 이 빌드에는 codex 글꼴 변경이 함께 들어감 → 아래 항목에서 검토 후 커밋.
+
+## 2026-10-29 codex 글꼴 변경 검토·커밋
+- 살림: `setStyleName("Medium"/"Regular")` 제거(굵기는 `setWeight`로만 → 제목 Bold 700, 파일 목록 Regular 400, 본문 Medium 확인), 안내 문구(#hint) 색 #888780 → #5f5e5a(더 진하게).
+- 되돌림: STYLE의 맑은 고딕 대체 글꼴 제거(Pretendard를 못 불러오면 Windows 기본 글꼴로 떨어짐), 지운 설명 주석들.
+- 바탕화면 exe(15:26)는 맑은 고딕 대체만 빠진 상태로 빌드됨. Pretendard가 들어 있어 화면은 같음 → 다음 빌드 때 반영.
