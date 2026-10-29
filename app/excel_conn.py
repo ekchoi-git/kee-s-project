@@ -48,7 +48,15 @@ def _open_workbooks():
             found.setdefault((app.Hwnd, wb.Name), wb)
     except Exception:
         pass
-    return list(found.values())
+    return [wb for wb in found.values() if _shown(wb)]
+
+
+def _shown(wb):
+    """숨은 Excel(다른 프로그램·시험이 자동화로 띄운 것)의 문서는 사용자가 연 파일이 아니라 뺀다."""
+    try:
+        return bool(wb.Application.Visible)
+    except Exception:
+        return True  # 셀 편집 중 등으로 바빠 못 물으면 보이는 것으로
 
 
 def list_files():

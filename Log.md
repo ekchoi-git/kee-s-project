@@ -167,3 +167,8 @@
 - 더 큰 문제 발견: 캐시가 없으면(새 PC의 exe, 캐시 삭제 후) 늦은 연결(dynamic)이 되는데, 이때 `ws.Copy(After=…)`의 이름 붙인 인자가 무시돼 시트가 새 통합 문서로 복사됨 → 되돌리기 사본 실패(e2e_undo_filters 0/9), 시트 합치기 결과 틀림.
 - 수정(`app/excel_conn.py`): 시작할 때 `__init__.py` 없는 깨진 캐시 폴더 삭제 + 찾은 통합 문서·Excel을 `gencache.EnsureDispatch`로 감싸 늘 형식 있는 연결(캐시 없으면 만듦, 실패하면 Dispatch).
 - 확인: 캐시 삭제 상태에서 소스·새 exe 모두 파일 인식하고 캐시를 다시 만듦. e2e_undo_filters 9/9, e2e_to_values 4/4, e2e_merge_sheets 통과. 바탕화면 Celly.exe 교체(15:39, 실행 중이던 옛 Celly는 종료 후 새로 켬).
+
+## 2026-10-29 Excel을 다 닫았는데 '통합 문서7'이 잡힘
+- 원인: 내 시험(15:36)이 남긴 숨은 자동화 Excel(`/automation -Embedding`, 저장 안 한 '통합 문서7')이 실행 개체 표에 남아 셀리가 그걸 찾음. 해당 프로세스는 종료.
+- 수정(`excel_conn._open_workbooks`): `Application.Visible`이 False인 Excel의 문서는 목록에서 뺌(다른 프로그램이 숨겨 띄운 Excel도 마찬가지). 바빠서 못 물으면 보이는 것으로 침.
+- 확인: 숨은 DispatchEx 문서는 안 잡히고, 보이게 바꾸면 잡힘. e2e_follow_active 통과. exe 다시 빌드해 바탕화면 교체(실행 중이던 셀리 종료 후 새로 켬).
