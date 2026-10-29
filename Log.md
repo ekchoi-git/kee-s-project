@@ -151,3 +151,8 @@
 - 원인: `main()`의 `win.resize(420, 화면높이-16)`은 창 안쪽 높이라 제목 표시줄·테두리(약 30px)만큼 작업 표시줄을 덮음.
 - 수정: 먼저 띄운 뒤 `frameGeometry()`로 바깥 틀 높이를 재서 빼고, 오른쪽 위에 다시 붙임. 실제 실행에서 창 아래가 작업 영역 안(816/816)에 들어옴.
 - 참고: `app/ui.py`에 codex의 글꼴 관련 미커밋 변경(맑은 고딕 대체 글꼴 제거 등)이 있음 → 이 커밋에는 안 넣음. 글자 흐림은 exe 탓이 아니라 Pretendard 한글이 100% 배율에서 힌팅이 약해서임. 비교 결과 FreeType 렌더링(`QT_QPA_PLATFORM=windows:fontengine=freetype`)이 가장 고름 — 적용 여부는 사용자 결정 대기.
+
+## 2026-10-29 FreeType 글자 렌더링 + exe 다시 빌드
+- `ui.main()`에서 `QT_QPA_PLATFORM=windows:fontengine=freetype`(이미 설정돼 있으면 그대로). 100% 배율에서 Pretendard 색 번짐 5,659px → 178px.
+- 빌드: `.packaging-venv/Scripts/pyinstaller --noconfirm Celly.spec` (이 venv만 anthropic·PySide6 6.8.3이 다 있음). `dist/Celly.exe`를 바탕화면 `Celly.exe`로 복사(15:26). 실행해서 창 크기(작업 영역 안)·글자 확인.
+- 주의: 이 빌드에는 `app/ui.py`의 codex 미커밋 글꼴 변경(STYLE에서 맑은 고딕 대체 제거, `setStyleName("Medium")` 제거, #hint 색 진하게)이 함께 들어감. 커밋은 안 함 — 살릴지 버릴지 사용자 결정.

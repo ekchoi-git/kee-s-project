@@ -924,6 +924,8 @@ def load_fonts():
 
 
 def main():
+    # FreeType: 100% 배율에서 Pretendard 한글이 기본(DirectWrite)보다 번짐 없이 고르게 보임
+    os.environ.setdefault("QT_QPA_PLATFORM", "windows:fontengine=freetype")
     app = QApplication([])
     app.setWindowIcon(QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "celly-icon.png")))
     load_fonts()
