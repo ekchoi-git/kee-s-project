@@ -85,10 +85,9 @@ class KeyDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("AI API 키")
         self.setMinimumWidth(420)
-        now = ai.current_key()
-        info = QLabel(f"현재 키: {f'{ai.masked(now)} ({ai.provider(now)})' if now else '없음'}\n"
-                      "입력한 키는 이 PC의 Windows 자격 증명 관리자에 암호화되어 저장됩니다.")
+        self.info = info = QLabel()
         info.setWordWrap(True)
+        self.show_now()
         self.edit = QLineEdit()
         self.edit.setEchoMode(QLineEdit.Password)
         self.edit.setPlaceholderText("OpenAI 또는 Claude API 키")
@@ -124,9 +123,16 @@ class KeyDialog(QDialog):
         ai.save_key(k)
         self.accept()
 
+    def show_now(self):
+        now = ai.current_key()
+        self.info.setText(f"현재 키: {f'{ai.masked(now)} ({ai.provider(now)})' if now else '없음'}\n"
+                          "입력한 키는 이 PC의 Windows 자격 증명 관리자에 암호화되어 저장됩니다.")
+
     def remove(self):
         ai.delete_key()
-        self.msg.setText("저장된 키를 삭제했습니다.")
+        self.show_now()
+        # 저장 키를 지워도 환경 변수(.env·Windows 사용자 환경 변수) 키가 있으면 그 키를 계속 쓴다
+        self.msg.setText("저장된 키를 삭제했습니다." + (" 환경 변수(.env 또는 Windows 사용자 환경 변수)에 있는 키는 계속 쓰입니다." if ai.current_key() else ""))
 
 
 class Bridge(QObject):
