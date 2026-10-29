@@ -160,11 +160,17 @@ def delete_key():
 
 
 def check_key(k):
-    """저장 전에 실제로 접속해 키와 모델 사용 권한을 확인. 실패하면 안내 문구를 담은 예외."""
+    """저장 전에 실제로 접속해 키와 모델 사용 권한을 확인. 실패하면 한국어 사유만 담은 예외."""
+    bad = "API 키가 올바르지 않습니다"
+    if not (k.isascii() and k.isprintable()) or " " in k:  # 한글·공백이 섞이면 접속 전에 영어 인코딩 오류가 남
+        raise RuntimeError(bad)
     try:
         connect(k, timeout=20, max_retries=0).models.retrieve(CLAUDE_MODEL if is_claude(k) else MODEL)
     except Exception as e:
-        raise RuntimeError(explain(e) or f"키 확인 실패: {e}")
+        anthropic = sys.modules.get("anthropic")
+        if isinstance(e, (openai.AuthenticationError,) + ((anthropic.AuthenticationError,) if anthropic else ())):
+            raise RuntimeError(bad)
+        raise RuntimeError((explain(e) or "알 수 없는 오류로 키를 확인하지 못했습니다").rstrip("."))
 
 
 def masked(k):

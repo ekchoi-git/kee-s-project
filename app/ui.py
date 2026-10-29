@@ -118,7 +118,7 @@ class KeyDialog(QDialog):
         try:
             ai.check_key(k)
         except Exception as e:
-            self.msg.setText(f"저장하지 않았습니다. {e}")
+            self.msg.setText(f"저장하지 않았습니다 (사유: {e})")
             return
         ai.save_key(k)
         self.accept()
