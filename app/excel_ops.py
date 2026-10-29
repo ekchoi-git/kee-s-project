@@ -1,5 +1,5 @@
 """Excel 쪽: 대상 표 읽기, AI 계획 검사, 실행, 직전 작업 되돌리기."""
-import hashlib, re, time
+import contextlib, hashlib, re, time
 
 import pywintypes
 
@@ -951,6 +951,23 @@ def new_sheet(t, name):
     return new
 
 
+@contextlib.contextmanager
+def manual_calc(xl):
+    """사본 뜨기·붙이기 동안만 자동 계산을 끈다. 수식 많은 시트(2만 행 SUMIF)에서 되돌리기가 10.7초 → 4.3초.
+    실행 단계는 계산 결과를 읽어야 해서 끄지 않는다."""
+    try:
+        old = xl.Calculation
+        if old != -4135:  # -4135 = xlCalculationManual, 사용자가 이미 수동이면 그대로
+            xl.Calculation = -4135
+    except Exception:
+        old = -4135  # 셀 편집 중 등으로 못 바꾸면 그냥 진행
+    try:
+        yield
+    finally:
+        if old != -4135:
+            retry_busy(setattr, xl, "Calculation", old)  # 못 돌려놓으면 수동 계산으로 남으므로 바쁘면 기다렸다 다시
+
+
 class Undo:
     """직전 AI 작업 1단계 되돌리기 (spike/undo_check.py에서 1만 행으로 검증한 방식)."""
 
@@ -981,6 +998,10 @@ class Undo:
         return saved
 
     def before(self):
+        with manual_calc(self.xl):
+            self._before()
+
+    def _before(self):
         self.drop()
         self.sheets = [s.Name for s in self.wb.Worksheets]
         try:
@@ -992,6 +1013,7 @@ class Undo:
             self.ws.Copy(After=self.wb.Worksheets(self.wb.Worksheets.Count))
             b = self.wb.Worksheets(self.wb.Worksheets.Count)
             b.Name, b.Visible = BACKUP, 2  # 2 = 사용자에게 안 보이는 숨김
+            b.EnableCalculation = False  # 사본은 붙여 넣을 원본일 뿐: 계산을 다시 켤 때·사용자가 편집할 때 같이 계산하지 않게
             self.ws.Activate()
         except Exception as e:
             raise PlanError(f"되돌리기용 사본을 만들지 못해 실행하지 않았습니다. {excel_error(e)}")
@@ -1000,6 +1022,10 @@ class Undo:
         self.done = fingerprint(self.ws)
 
     def undo(self, force=False):
+        with manual_calc(self.xl):
+            return self._undo(force)
+
+    def _undo(self, force=False):
         if not force and fingerprint(self.ws) != self.done:
             raise PlanError("AI 작업 뒤에 직접 수정한 내용이 있어 되돌리지 않았습니다. 직접 수정한 내용을 덮어쓰지 않기 위해서입니다.")
         self.xl.DisplayAlerts = False
