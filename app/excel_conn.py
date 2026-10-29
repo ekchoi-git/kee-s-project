@@ -1,8 +1,25 @@
 """실행 중인 Excel(여러 개여도)에서 열린 통합 문서·시트와 데이터 범위를 읽는다. FR-01."""
+import glob, os, shutil
 import pythoncom
+import win32com
 import win32com.client as w
 import win32gui
 import win32process
+
+# pywin32의 Excel 형식 캐시(%TEMP%\gen_py)가 반쯤 지워지면(__init__.py 없음) Excel 연결이 전부
+# "CLSIDToClassMap" AttributeError로 실패해 '파일을 찾지 못함'으로 보였음 → 깨진 폴더는 지우면 다시 만들어진다
+for _d in glob.glob(os.path.join(win32com.__gen_path__, "*", "")):
+    if os.path.basename(_d[:-1]) != "__pycache__" and not os.path.exists(os.path.join(_d, "__init__.py")):
+        shutil.rmtree(_d, ignore_errors=True)
+
+
+def _typed(obj):
+    """형식 정보로 감싼다. 캐시 없이(새 PC·캐시 삭제 후) 감싸면 Copy(After=…) 같은 이름 붙인 인자가 무시돼
+    시트가 새 통합 문서로 복사되는 등 동작이 달라짐 → 캐시를 만들어서라도 늘 같은 방식으로 연결한다."""
+    try:
+        return w.gencache.EnsureDispatch(obj)
+    except Exception:
+        return w.Dispatch(obj)
 
 
 class ExcelError(Exception):
@@ -19,14 +36,14 @@ def _open_workbooks():
             name = mon.GetDisplayName(ctx, None)
             if name.lower().endswith((".xlsx", ".xlsm", ".xls")):
                 try:
-                    wb = w.Dispatch(rot.GetObject(mon).QueryInterface(pythoncom.IID_IDispatch))
+                    wb = _typed(rot.GetObject(mon).QueryInterface(pythoncom.IID_IDispatch))
                     found[(wb.Application.Hwnd, wb.Name)] = wb
                 except Exception:
                     pass  # 다른 프로그램이 연 파일이면 건너뜀
     except Exception:
         pass
     try:
-        app = w.GetActiveObject("Excel.Application")
+        app = _typed(w.GetActiveObject("Excel.Application"))
         for wb in app.Workbooks:
             found.setdefault((app.Hwnd, wb.Name), wb)
     except Exception:

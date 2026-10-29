@@ -161,3 +161,9 @@
 - 살림: `setStyleName("Medium"/"Regular")` 제거(굵기는 `setWeight`로만 → 제목 Bold 700, 파일 목록 Regular 400, 본문 Medium 확인), 안내 문구(#hint) 색 #888780 → #5f5e5a(더 진하게).
 - 되돌림: STYLE의 맑은 고딕 대체 글꼴 제거(Pretendard를 못 불러오면 Windows 기본 글꼴로 떨어짐), 지운 설명 주석들.
 - 바탕화면 exe(15:26)는 맑은 고딕 대체만 빠진 상태로 빌드됨. Pretendard가 들어 있어 화면은 같음 → 다음 빌드 때 반영.
+
+## 2026-10-29 Excel 파일이 열려 있는데 '찾지 못함', 새로고침도 안 됨
+- 원인: pywin32의 Excel 형식 캐시 `%TEMP%\gen_py\3.12\00020813-…x0x1x9`에서 `__init__.py`가 지워져(15:02, 지운 주체 불명) Excel 연결이 모두 `…has no attribute 'CLSIDToClassMap'`로 실패 → `_open_workbooks`의 `except: pass`가 삼켜 '파일 없음'으로 보임. 소스·exe가 같은 캐시를 씀.
+- 더 큰 문제 발견: 캐시가 없으면(새 PC의 exe, 캐시 삭제 후) 늦은 연결(dynamic)이 되는데, 이때 `ws.Copy(After=…)`의 이름 붙인 인자가 무시돼 시트가 새 통합 문서로 복사됨 → 되돌리기 사본 실패(e2e_undo_filters 0/9), 시트 합치기 결과 틀림.
+- 수정(`app/excel_conn.py`): 시작할 때 `__init__.py` 없는 깨진 캐시 폴더 삭제 + 찾은 통합 문서·Excel을 `gencache.EnsureDispatch`로 감싸 늘 형식 있는 연결(캐시 없으면 만듦, 실패하면 Dispatch).
+- 확인: 캐시 삭제 상태에서 소스·새 exe 모두 파일 인식하고 캐시를 다시 만듦. e2e_undo_filters 9/9, e2e_to_values 4/4, e2e_merge_sheets 통과. 바탕화면 Celly.exe 교체(15:39, 실행 중이던 옛 Celly는 종료 후 새로 켬).
