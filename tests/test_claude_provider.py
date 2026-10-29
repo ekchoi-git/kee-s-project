@@ -36,5 +36,5 @@ try:  # 실제 Claude 서버: 잘못된 키는 인증 실패 안내로
     ai.check_key("sk-ant-api03-invalid")
     raise AssertionError("잘못된 키가 통과함")
 except RuntimeError as e:
-    assert "인증 실패" in str(e), e
+    assert "API 키가 올바르지 않습니다" in str(e), e
 print("ok")
