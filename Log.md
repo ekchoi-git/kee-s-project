@@ -118,7 +118,7 @@
 - 수정: `anthropic`은 Claude 키로 연결할 때(`connect`)만 불러오고, `ask`·`explain`은 `sys.modules`에 있을 때만 Claude 종류를 확인. `import app.ui` 9.0s → 1.6s(OpenAI 키 사용자는 anthropic을 아예 안 불러옴). `test_claude_provider` 통과.
 
 ## 2026-10-29 API 키를 화면에서 바꿔도 그대로
-- 원인: 소스로 실행할 때 `current_key()`가 .env 키를 화면에서 저장한 키보다 먼저 씀 → 새 키를 저장해도 화면에는 .env 키(sk-…PLkA)가 계속 보이고 그 키로 접속.
+- 원인: 소스로 실행할 때 `current_key()`가 .env 키를 화면에서 저장한 키보다 먼저 씀 → 새 키를 저장해도 환경 변수 키(sk-…PLkA, 이 PC는 .env가 없고 Windows 사용자 환경 변수에 있음)가 계속 보이고 그 키로 접속.
 - 수정: 순서를 항상 화면 저장 키 → 환경 변수(.env)로 통일. 배포 exe는 원래 이 순서라 영향 없음. 가짜 키로 우선순위만 확인(실제 자격 증명은 안 건드림).
 
 ## 2026-10-29 키 삭제해도 '현재 키'가 그대로
