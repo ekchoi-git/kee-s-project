@@ -112,3 +112,7 @@
 - 바꾼 것: ① `first_block` 위쪽 200행만 훑음(다른 시트 목록도 이걸 써서 61만 행을 통째로 읽던 것 해소, `shortcut:` 주석) ② `quality`가 읽은 값을 `bad_text`에 넘김(열마다 다시 읽지 않음) ③ `_num`·`numeric_text`가 첫 글자로 숫자 아닌 글자를 먼저 거름(float() 예외 수십만 번) ④ 지문은 `Formula2`만(값 수정·수식 수정은 모두 잡힘, 계산 결과 변화는 안 봄 → TODAY 같은 수식 때문에 되돌리기가 막히던 일도 없어짐).
 - 확인: 바꾸기 전·후 코드로 같은 파일의 표 범위·열별 주의 값·시트 목록이 글자까지 같음(공판장 파일, 500행 fixture). 단위 시험, e2e_undo_filters 9/9, e2e_to_values 4/4, e2e_merge_sheets, e2e_app 4건 적용·되돌리기 통과.
 - 남은 느린 곳: 되돌리기용 시트 사본(Excel `Copy`) 20초·되돌리기 25초는 Excel 자체 작업이라 그대로. 지문·열별 검사는 Excel에서 값을 읽는 시간이 대부분.
+
+## 2026-10-29 셀리 시작이 느림(창이 10초 넘게 안 뜸)
+- 원인: `ai.py`가 맨 위에서 `anthropic`을 불러옴. 이 패키지는 모듈이 수천 개라 PySide6를 먼저 불러온 상태에서는 PySide6의 import 훅이 모듈마다 소스를 검사해 `import app.ui`만 9초.
+- 수정: `anthropic`은 Claude 키로 연결할 때(`connect`)만 불러오고, `ask`·`explain`은 `sys.modules`에 있을 때만 Claude 종류를 확인. `import app.ui` 9.0s → 1.6s(OpenAI 키 사용자는 anthropic을 아예 안 불러옴). `test_claude_provider` 통과.

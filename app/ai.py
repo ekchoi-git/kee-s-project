@@ -1,6 +1,5 @@
 """AI 연결(OpenAI·Claude): 한국어 요청을 정해진 형식(JSON)의 작업 계획으로 바꾼다. 실행은 하지 않는다."""
 import json, os, sys, winreg
-import anthropic
 import openai
 import win32cred
 from openai import OpenAI
@@ -27,13 +26,15 @@ def provider(k):
 
 def connect(k, timeout=60, max_retries=2):
     if is_claude(k):  # Claude는 답 전에 생각하는 시간이 있어 기다리는 시간을 넉넉히
+        import anthropic  # Claude 키일 때만: 불러오는 데 몇 초 걸려 셀리 시작이 느려지므로 맨 위에서 부르지 않음
         return anthropic.Anthropic(api_key=k, timeout=timeout * 2, max_retries=max_retries)
     return OpenAI(api_key=k, timeout=timeout, max_retries=max_retries)
 
 
 def ask(client, system, messages, schema):
     """정해진 JSON 형식으로 답을 받는다(OpenAI·Claude 공통). (답, 토큰 수)"""
-    if isinstance(client, anthropic.Anthropic):
+    anthropic = sys.modules.get("anthropic")  # 안 불러왔으면 Claude 클라이언트일 수 없음
+    if anthropic and isinstance(client, anthropic.Anthropic):
         r = client.beta.messages.create(
             model=CLAUDE_MODEL, max_tokens=16000, messages=messages,
             # 매번 같은 긴 규칙 설명은 Claude 쪽에 저장해 두고 재사용(그 부분 입력 비용 약 1/10). OpenAI는 자동으로 함
@@ -204,13 +205,18 @@ def api_key():
 
 def explain(e):
     """PRD FR-08: 실패 종류를 구분해 안내."""
-    if isinstance(e, (openai.AuthenticationError, anthropic.AuthenticationError)): return "AI 인증 실패: API 키를 확인해주세요."
-    if isinstance(e, (openai.PermissionDeniedError, anthropic.PermissionDeniedError)): return "AI 권한 없음: 이 키로 해당 모델을 쓸 수 없습니다."
-    if isinstance(e, (openai.RateLimitError, anthropic.RateLimitError)): return "AI 요청 제한 또는 사용 한도 초과입니다. 잠시 후 다시 시도해주세요."
-    if isinstance(e, (openai.APITimeoutError, anthropic.APITimeoutError)): return "AI 응답 시간 초과입니다. 다시 시도해주세요."
-    if isinstance(e, (openai.APIConnectionError, anthropic.APIConnectionError)): return "AI 서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요."
-    if isinstance(e, (openai.NotFoundError, anthropic.NotFoundError)):
-        return f"AI 모델 '{CLAUDE_MODEL if isinstance(e, anthropic.NotFoundError) else MODEL}'을 찾을 수 없습니다."
+    anthropic = sys.modules.get("anthropic")
+
+    def err(name):  # 두 회사의 같은 종류 오류
+        return (getattr(openai, name),) + ((getattr(anthropic, name),) if anthropic else ())
+
+    if isinstance(e, err("AuthenticationError")): return "AI 인증 실패: API 키를 확인해주세요."
+    if isinstance(e, err("PermissionDeniedError")): return "AI 권한 없음: 이 키로 해당 모델을 쓸 수 없습니다."
+    if isinstance(e, err("RateLimitError")): return "AI 요청 제한 또는 사용 한도 초과입니다. 잠시 후 다시 시도해주세요."
+    if isinstance(e, err("APITimeoutError")): return "AI 응답 시간 초과입니다. 다시 시도해주세요."
+    if isinstance(e, err("APIConnectionError")): return "AI 서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요."
+    if isinstance(e, err("NotFoundError")):
+        return f"AI 모델 '{CLAUDE_MODEL if type(e).__module__.startswith('anthropic') else MODEL}'을 찾을 수 없습니다."
     if isinstance(e, (json.JSONDecodeError, KeyError)): return "AI 응답을 해석하지 못했습니다. 다시 시도해주세요."
     return None
 
