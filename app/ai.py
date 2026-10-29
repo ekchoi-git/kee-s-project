@@ -4,7 +4,7 @@ import openai
 import win32cred
 from openai import OpenAI
 
-# 개발 중(소스로 실행)에만 프로젝트 폴더의 .env를 읽는다. 배포한 exe는 화면에서 저장한 키를 쓴다.
+# 개발 중(소스로 실행)에만 프로젝트 폴더의 .env를 읽는다. 화면에서 저장한 키가 있으면 그게 먼저다.
 DEV = not getattr(sys, "frozen", False)
 if DEV:
     from dotenv import load_dotenv
@@ -179,9 +179,8 @@ def masked(k):
 
 
 def current_key():
-    """개발 중: .env(환경 변수) → 화면에서 저장한 키. 배포 exe: 화면에서 저장한 키 → 환경 변수. 없으면 None."""
-    env = next((os.environ[n] for n in KEY_ENVS if os.environ.get(n)), None)
-    k = (env or saved_key()) if DEV else (saved_key() or env)
+    """화면에서 저장한 키 → 환경 변수(.env). 화면에서 바꾼 키가 늘 이긴다. 없으면 None."""
+    k = saved_key() or next((os.environ[n] for n in KEY_ENVS if os.environ.get(n)), None)
     if not k:  # 프로그램을 켠 뒤에 넣은 키는 열린 창에 안 보이므로 사용자 환경 변수에서 직접 읽음
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as h:
