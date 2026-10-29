@@ -6,10 +6,12 @@
 - 핵심 코드: `app/excel_ops.py`(Excel 실행·되돌리기), `app/ai.py`(OpenAI·Claude 연결, 계획 프롬프트·스키마, 키 저장), `app/ui.py`(화면·흐름), `app/excel_conn.py`(열린 Excel 찾기), `app/classify.py`(분류).
 - AI: OpenAI(`gpt-5.6-terra`)와 Claude(`claude-sonnet-5-5`) 둘 다 지원. `sk-ant-`로 시작하면 Claude. 키는 API 키 창에서 넣은 것만 씀(Windows 자격 증명 관리자 `ExcelAI/OPENAI_API_KEY`). .env·환경 변수는 안 읽음.
 - 아래 수정은 모두 main에 커밋·푸시됨. 지금은 소스로 실행(`pythonw celly.py`).
-- 바탕화면 `Celly.exe`는 옛 빌드(코덱스, 되돌리기 버그·옛 이름 `celli.py` 포함). 사용자 지시: 개발 완료 후에 다시 빌드.
+- **작업 규칙 (2026-10-29 사용자 지시): 지금부터는 파이썬 소스만 고치고 소스로 실행(`pythonw celly.py`)해 확인한다. exe는 빌드하지 않는다. 개발이 완성되면 그때 exe를 업데이트한다.**
+- 바탕화면 `Celly.exe`는 2026-10-29 15:53 빌드(커밋 `d2c2b90`까지 반영). 이후 수정은 exe에 없음.
+- exe 빌드 방법(완성 후): `.packaging-venv/Scripts/pyinstaller --noconfirm Celly.spec` → `dist/Celly.exe`를 바탕화면에 복사. 빌드 후 확인: 저장 키 읽기(`win32timezone` 포함), Excel 인식(gen_py 캐시), 글자(FreeType).
 
 ## 다음에 할 일
-- 개발 완료 후 `Celly.exe` 다시 빌드(사용자가 말할 때).
+- 개발 완료 후 `Celly.exe` 다시 빌드(사용자가 말할 때만).
 - Claude 키 실제 사용 시험(사용자가 나중에 키 발급 후).
 - 배포: 다른 PC에서 exe가 Windows 애플리케이션 제어(스마트 앱 컨트롤/회사 WDAC)에 막힘 → 아래 '2026-10-29 다른 PC에서 exe 실행 차단' 참고.
 - 키 확인 중 모르는 오류는 영어 원문을 어디에도 안 남김(사용자가 로그 여부 답 안 함). 필요하면 로그 파일 추가.
