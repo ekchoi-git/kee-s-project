@@ -172,3 +172,8 @@
 - 원인: 내 시험(15:36)이 남긴 숨은 자동화 Excel(`/automation -Embedding`, 저장 안 한 '통합 문서7')이 실행 개체 표에 남아 셀리가 그걸 찾음. 해당 프로세스는 종료.
 - 수정(`excel_conn._open_workbooks`): `Application.Visible`이 False인 Excel의 문서는 목록에서 뺌(다른 프로그램이 숨겨 띄운 Excel도 마찬가지). 바빠서 못 물으면 보이는 것으로 침.
 - 확인: 숨은 DispatchEx 문서는 안 잡히고, 보이게 바꾸면 잡힘. e2e_follow_active 통과. exe 다시 빌드해 바탕화면 교체(실행 중이던 셀리 종료 후 새로 켬).
+
+## 2026-10-29 exe에서 키 저장 성공인데 '키 없음'
+- 원인: exe에 `win32timezone`이 안 묶임. `win32cred.CredRead`가 결과의 날짜(LastWritten)를 만들 때 이 모듈을 몰래 불러오는데 없어서 `ModuleNotFoundError` → `saved_key()`의 `except`가 삼켜 None. 저장(CredWrite)은 됐음. 소스 실행에선 문제 없어서 못 봤고, 전에는 환경 변수 키가 가려 줬음.
+- 수정: `app/ai.py`에서 `import win32timezone`을 직접 해 PyInstaller가 묶게 함(Celly.spec은 git에 없어 코드에 둠).
+- 확인: 콘솔용 시험 exe로 수정 전 `ModuleNotFoundError` 재현, 수정 후 저장 키 읽힘. Celly.exe 다시 빌드해 바탕화면 교체(15:53), 새로 켬. 키는 이미 자격 증명 관리자에 저장돼 있어 다시 넣을 필요 없음.

@@ -2,6 +2,7 @@
 import json, sys
 import openai
 import win32cred
+import win32timezone  # noqa: F401  CredRead가 날짜를 만들 때 몰래 불러옴 → exe에 안 묶이면 저장한 키를 못 읽음
 from openai import OpenAI
 
 MODEL = "gpt-5.6-terra"
