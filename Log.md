@@ -146,3 +146,8 @@
 - 원인: 서명 없는 PyInstaller exe가 `%TEMP%\_MEI…`에 푼 DLL(pywin32 등)을 Windows 스마트 앱 컨트롤 또는 회사 WDAC/AppLocker가 차단. 코드 버그 아님.
 - 선택지: 테스트는 테스터가 스마트 앱 컨트롤 끄기(되돌리려면 Windows 재설치)나 소스로 실행. 정식 배포는 코드 서명 필요 → 무료 후보는 Microsoft Store(개인 계정 무료로 기억, 미확인, MSIX 패키징·심사)나 SignPath Foundation(오픈소스만). 자체 서명은 효과 없음.
 - 결정 안 됨: 배포 방식은 사용자가 정할 일.
+
+## 2026-10-29 처음 창 아래가 작업 표시줄에 가려짐
+- 원인: `main()`의 `win.resize(420, 화면높이-16)`은 창 안쪽 높이라 제목 표시줄·테두리(약 30px)만큼 작업 표시줄을 덮음.
+- 수정: 먼저 띄운 뒤 `frameGeometry()`로 바깥 틀 높이를 재서 빼고, 오른쪽 위에 다시 붙임. 실제 실행에서 창 아래가 작업 영역 안(816/816)에 들어옴.
+- 참고: `app/ui.py`에 codex의 글꼴 관련 미커밋 변경(맑은 고딕 대체 글꼴 제거 등)이 있음 → 이 커밋에는 안 넣음. 글자 흐림은 exe 탓이 아니라 Pretendard 한글이 100% 배율에서 힌팅이 약해서임. 비교 결과 FreeType 렌더링(`QT_QPA_PLATFORM=windows:fontengine=freetype`)이 가장 고름 — 적용 여부는 사용자 결정 대기.

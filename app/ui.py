@@ -931,7 +931,9 @@ def main():
     win = Window()
     # Excel 옆에 나란히 보이도록 화면 오른쪽에 세로로 길게 붙인다
     geo = app.primaryScreen().availableGeometry()
-    win.resize(420, geo.height() - 16)
-    win.move(geo.right() - win.width() - 8, geo.top() + 8)
     win.show()
+    app.processEvents()
+    bar = win.frameGeometry().height() - win.height()  # 제목 표시줄·테두리: resize 높이에 안 들어가 작업 표시줄을 덮었음
+    win.resize(420, geo.height() - 16 - bar)
+    win.move(geo.right() - win.frameGeometry().width() - 8, geo.top() + 8)
     app.exec()
