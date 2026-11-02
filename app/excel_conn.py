@@ -97,6 +97,9 @@ def foreground_workbook(wbs):
 
 def active_sheet(wb):
     """그 파일에서 지금 열려 있는(보이는) 시트. 일반 시트가 아니면(차트 시트 등) ExcelError."""
+    if protected_view(wb):
+        raise ExcelError("인터넷에서 받은 파일이라 Excel이 '제한된 보기'로 열어 읽기·수정을 막고 있습니다. "
+                         "Excel 위쪽 노란 줄의 [편집 사용]을 누른 뒤 새로고침을 눌러주세요.")
     ws = wb.ActiveSheet
     try:
         is_data = ws.Type == -4167  # xlWorksheet
@@ -105,6 +108,16 @@ def active_sheet(wb):
     if not is_data:
         raise ExcelError(f"'{ws.Name}'은 데이터 시트가 아닙니다. Excel에서 데이터가 있는 시트를 열어주세요.")
     return ws
+
+
+def protected_view(wb):
+    """제한된 보기(인터넷에서 받은 파일)로 열린 문서인지. 이 상태에선 ActiveSheet조차 COM 오류가 난다.
+    [편집 사용]은 보안 경고라 셀리가 대신 누르지 않고 사용자가 누르게 한다."""
+    try:
+        pv = wb.Application.ProtectedViewWindows
+        return any(pv(i).Workbook.Name == wb.Name for i in range(1, pv.Count + 1))
+    except Exception:
+        return False
 
 
 def read_summary(ws):
