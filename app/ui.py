@@ -863,7 +863,7 @@ class Window(QWidget):
         self.last = u
         self.suggestion = (t.ws, sugg) if sugg else None
         steps = "\n".join("• " + d for d in done)
-        head = "⚠ 일부만 분류됨" if cls and cls[0]["failed"] else "✔ 적용 완료"  # 일부 실패를 전체 성공으로 표시하지 않음
+        head = "⚠ 일부만 분류됨" if cls and cls[0]["failed"] else "✔ 작업 완료"  # 일부 실패를 전체 성공으로 표시하지 않음
         return f"{head}\n{plan['summary']}\n\n대상: {t.wb.Name} › {t.ws.Name}\n{steps}"
 
     def excel_progress(self, stage):
