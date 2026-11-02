@@ -919,6 +919,11 @@ def label(ws, cell):
     return cell.Address.replace("$", "")
 
 
+def _n(x):
+    """유효숫자 10자리: 377,610,000 / 284.3107 / 0.0001. 소수 둘째 자리로 자르면 0.001과 0.0001이 둘 다 0.00으로 보임."""
+    return f"{x:,.10g}"
+
+
 def goal_seek(t, g, summary=""):
     """목표값 찾기: target 수식 결과가 goal이 되도록 change 칸 값을 Excel이 찾고, 답은 새 시트에 표로 남긴다.
     엉뚱한 칸을 골랐으면 실행 전에 막고, 답을 못 찾으면 원래 값으로 돌린 뒤 실패를 알린다."""
@@ -936,15 +941,24 @@ def goal_seek(t, g, summary=""):
     if not linked:
         raise PlanError(f"결과 칸 {tn}의 수식이 {cn}을 참조하지 않아 그 칸을 바꿔도 결과가 변하지 않습니다.")
     old, before = change.Value2, target.Value2
-    ok = target.GoalSeek(goal, change)
+    # 허용 오차는 값 크기에 맞춘다: 고정 0.01이면 수익률 0.0001 목표에 0.00025를 성공으로 봄.
+    # Excel 기본 정밀도(MaxChange 0.001)로는 그런 작은 목표에서 값을 안 바꾸고 성공을 돌려주므로 실행 동안만 좁힌다
+    scale = max(abs(goal), abs(before) if isinstance(before, (int, float)) else 0)
+    tol = max(scale, 1e-9) * 1e-5
+    mc = xl.MaxChange
+    xl.MaxChange = min(mc, tol / 10)
+    try:
+        ok = target.GoalSeek(goal, change)
+    finally:
+        xl.MaxChange = mc
     xl.Calculate()
     got = target.Value2
-    if not (ok and isinstance(got, (int, float)) and abs(got - goal) <= max(0.01, abs(goal) * 1e-6)):
+    if not (ok and isinstance(got, (int, float)) and abs(got - goal) <= tol):
         change.Value2 = old
         xl.Calculate()
-        stop = f"{got:,.2f}" if isinstance(got, (int, float)) else str(got)
-        raise PlanError(f"{cn}을 바꿔서는 {tn}을 {goal:,.2f}으로 만들 수 없었습니다(Excel이 {stop}에서 멈춤). "
-                        f"{cn}은 원래 값 {old:,.2f}으로 돌렸습니다.")
+        stop = _n(got) if isinstance(got, (int, float)) else str(got)
+        raise PlanError(f"{cn}을 바꿔서는 {tn}을 {_n(goal)}으로 만들 수 없었습니다(Excel이 {stop}에서 멈춤). "
+                        f"{cn}은 원래 값 {_n(old)}으로 돌렸습니다.")
     out = new_sheet(t, "목표값 찾기")
     out.Range("A1").Value2 = "목표값 찾기 결과"
     out.Range("A2").Value2 = summary
@@ -953,13 +967,16 @@ def goal_seek(t, g, summary=""):
                                   ("결과 칸", tn, before, got))
     out.Range("A7:B7").Value2 = ("목표", goal)
     out.Range("A9").Value2 = f"원본 시트 '{ws.Name}'의 {cn} 값을 찾은 값으로 바꿨습니다. 원래 값이 필요하면 셀리에서 되돌리기를 누르세요."
-    out.Range("C5:D6,B7").NumberFormat = "#,##0.##"
+    for a in ("C5", "D5", "C6", "D6", "B7"):  # 정수만 쉼표, 소수는 새 시트 기본 형식 그대로(0.001이 0으로 잘려 보이지 않게)
+        c = out.Range(a)
+        if isinstance(c.Value2, (int, float)) and float(c.Value2).is_integer():
+            c.NumberFormat = "#,##0"
     out.Range("A1,A4:D4").Font.Bold = True
     out.Columns("A:D").AutoFit()
     ws.Activate()  # 다음 요청이 결과 시트가 아니라 원래 양식을 대상으로 잡게(다른 새 시트 결과와 같음)
-    return [f"목표값 찾기: {tn}이 {goal:,.2f}이 되려면 {cn} = {change.Value2:,.2f}",
-            f"  {cn}: {old:,.2f} → {change.Value2:,.2f}, {tn}: {before:,.2f} → {got:,.2f}" if isinstance(before, (int, float))
-            else f"  {cn}: {old:,.2f} → {change.Value2:,.2f}",
+    return [f"목표값 찾기: {tn}이 {_n(goal)}이 되려면 {cn} = {_n(change.Value2)}",
+            f"  {cn}: {_n(old)} → {_n(change.Value2)}, {tn}: {_n(before)} → {_n(got)}" if isinstance(before, (int, float))
+            else f"  {cn}: {_n(old)} → {_n(change.Value2)}",
             f"  결과 정리: 새 시트 '{out.Name}' (원본 {cn} 값도 바뀜, 되돌리기 가능)"]
 
 
@@ -1110,15 +1127,21 @@ class Undo:
             raise PlanError(f"되돌리기용 사본을 만들지 못해 실행하지 않았습니다. {excel_error(e)}")
 
     def after(self):
-        self.done = fingerprint(self.ws)
+        self.done = self._state()
+
+    def _state(self):
+        """원래 시트와 이번 작업이 만든 새 시트(결과·피벗)의 내용. 되돌리기는 새 시트를 지우므로 거기 직접 쓴 내용도 지켜야 한다."""
+        sheets = [self.wb.Worksheets(i) for i in range(1, self.wb.Worksheets.Count + 1)]  # 번호로 꺼냄(_fingerprint 참고)
+        return [fingerprint(self.ws)] + [fingerprint(s) for s in sheets if s.Name not in self.sheets and s.Name != BACKUP]
 
     def undo(self, force=False):
         with manual_calc(self.xl):
             return self._undo(force)
 
     def _undo(self, force=False):
-        if not force and fingerprint(self.ws) != self.done:
-            raise PlanError("AI 작업 뒤에 직접 수정한 내용이 있어 되돌리지 않았습니다. 직접 수정한 내용을 덮어쓰지 않기 위해서입니다.")
+        if not force and self._state() != self.done:
+            raise PlanError("AI 작업 뒤에 직접 수정한 내용(원래 시트나 AI가 만든 결과 시트)이 있어 되돌리지 않았습니다. "
+                            "직접 수정한 내용을 덮어쓰지 않기 위해서입니다.")
         self.xl.DisplayAlerts = False
         try:
             for s in list(self.wb.Worksheets):

@@ -54,6 +54,27 @@ try:
                        want is None and ws.Range(chg).Value2 == old))
             print("  " + str(e))
             u.undo(force=True)
+    # 작은 목표(수익률): Excel 기본 정밀도면 값을 안 바꾸고 성공을 돌려줌 → 셀리가 진짜 답(√10≈3.16228)을 찾거나 실패해야 함
+    rs = wb.Worksheets.Add(After=ws)
+    rs.Range("B1:C2").Value = (("투자 규모", 5), ("수익률", None))
+    rs.Range("C2").Formula = "=C1^2/100000"
+    t = Target(rs)
+    plan["goal_seek"] = {"target": "C2", "goal": 0.0001, "change": "C1"}
+    u = Undo(t)
+    u.before()
+    msg = execute(t, plan)
+    print("  " + "\n  ".join(msg))
+    ok.append((f"작은 목표 0.0001: C1 {rs.Range('C1').Value2}, C2 {rs.Range('C2').Value2}",
+               abs(rs.Range("C1").Value2 - 10 ** 0.5) < 1e-3 and abs(rs.Range("C2").Value2 - 0.0001) < 1e-8))
+    # 결과 시트에 직접 쓴 내용이 있으면 되돌리기가 시트를 지우지 않아야 함
+    u.after()
+    wb.Worksheets("목표값 찾기").Range("F1").Value = "내 메모"
+    try:
+        u.undo()
+        ok.append(("결과 시트 수정 후 되돌리기 거부", False))
+    except PlanError as e:
+        ok.append(("결과 시트 수정 후 되돌리기 거부", wb.Worksheets("목표값 찾기").Range("F1").Value == "내 메모"))
+        print("  " + str(e))
     for k, v in ok:
         print(f"{'✔' if v else '✘'} {k}")
     print(f"{sum(v for _, v in ok)}/{len(ok)} 통과")
