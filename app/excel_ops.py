@@ -93,8 +93,13 @@ def validate(plan, headers):
             bad.append(f"'{h['formula'][:60]}'는 조건부 서식 수식이 아닙니다.")
         if BLOCKED_FN.search(h["formula"]) or EXTERNAL.search(h["formula"]):
             bad.append(f"'{h['formula'][:60]}'는 외부 연결·다른 파일이 필요한 수식이라 실행하지 않습니다.")
+    g = plan.get("goal_seek")
+    if g:
+        for k in ("target", "change"):
+            if ":" in g[k] or not ADDRESS.match(g[k].upper()):
+                bad.append(f"'{g[k]}'는 목표값 찾기에 쓸 한 칸 주소가 아닙니다.")
     if plan["action"] == "change" and not (plan["filters"] or plan["sorts"] or plan["writes"] or plan["pivot"] or plan["classify"]
-                                           or plan["to_number"] or plan["to_values"] or plan["formats"] or plan["highlights"]):
+                                           or plan["to_number"] or plan["to_values"] or plan["formats"] or plan["highlights"] or g):
         bad.append("실행할 작업이 없습니다.")
     return bad
 
@@ -420,8 +425,27 @@ class Target:
             *self.quality(),
             "샘플 5행:", *sample,
             *self.outside(),
+            *self.all_cells(),
             *self.other_sheets(),
         ])
+
+    def all_cells(self, limit=400):
+        """작은 시트는 모든 칸을 주소와 함께 알린다. 손익계산서처럼 항목이 흩어진 양식은 표 하나로 읽으면
+        표 아래·옆 칸(영업이익 D20 등)이 빠져 AI가 칸 위치를 짐작한다."""
+        used = self.ws.UsedRange
+        if used.Count > limit:
+            return []
+        dyn = dynamic_arrays(self.ws)
+        f, v = (used.Formula2 if dyn else used.Formula), used.Value2
+        f, v = (f, v) if isinstance(f, tuple) else (((f,),), ((v,),))
+        lines = []
+        for i, row in enumerate(f):
+            for j, x in enumerate(row):
+                if x in ("", None):
+                    continue
+                addr = f"{col_letter(used.Column + j)}{used.Row + i}"
+                lines.append(f"{addr}: {x}" + (f"  (= {v[i][j]})" if str(x).startswith("=") else ""))
+        return ["시트의 모든 칸(작은 시트, 수식은 현재 결과 함께):", *lines] if lines else []
 
     def other_sheets(self, limit=30):
         """같은 파일의 다른 시트 표(이름·범위·머리글). 이게 없으면 AI는 여러 시트를 합치거나 참조할 때 시트 이름을 되묻는다."""
@@ -808,6 +832,11 @@ def _execute(t, plan, stage, progress=None):
     for h in plan["highlights"]:
         done += highlight(t, h)
 
+    stage[0] = "목표값 찾기"
+    progress(stage[0])
+    if plan.get("goal_seek"):
+        done += goal_seek(t, plan["goal_seek"])
+
     stage[0] = "피벗"
     progress(stage[0])
     if plan["pivot"]:
@@ -876,6 +905,47 @@ def highlight(t, h):
     if not n:
         out.append("⚠ 지금은 조건에 맞는 칸이 없습니다. 조건이 맞는지 확인해주세요.")
     return out
+
+
+def label(ws, cell):
+    """칸 왼쪽에서 처음 만나는 글자(양식의 항목 이름). 사용자가 AI가 고른 칸이 맞는지 이름으로 확인하게."""
+    for c in range(cell.Column - 1, 0, -1):
+        v = ws.Cells(cell.Row, c).Value2
+        if isinstance(v, str) and v.strip():
+            return f"{cell.Address.replace('$', '')}({v.strip()})"
+    return cell.Address.replace("$", "")
+
+
+def goal_seek(t, g):
+    """목표값 찾기: target 수식 결과가 goal이 되도록 change 칸 값을 Excel이 찾는다.
+    엉뚱한 칸을 골랐으면 실행 전에 막고, 답을 못 찾으면 원래 값으로 돌린 뒤 실패를 알린다."""
+    ws, xl = t.ws, t.xl
+    target, change, goal = ws.Range(g["target"]), ws.Range(g["change"]), g["goal"]
+    tn, cn = label(ws, target), label(ws, change)
+    if not target.HasFormula:
+        raise PlanError(f"결과 칸 {tn}은 수식이 아니라 목표값 찾기를 할 수 없습니다. 수식으로 계산되는 칸을 말씀해주세요.")
+    if change.HasFormula or not isinstance(change.Value2, (int, float)) or isinstance(change.Value2, bool):
+        raise PlanError(f"바꿀 칸 {cn}은 숫자를 직접 입력한 칸이 아니라(수식이거나 숫자가 아님) 목표값 찾기를 할 수 없습니다.")
+    try:
+        linked = xl.Intersect(target.Precedents, change) is not None  # 같은 시트 안의 모든 단계 참조
+    except pywintypes.com_error:  # 참조하는 칸이 없음
+        linked = False
+    if not linked:
+        raise PlanError(f"결과 칸 {tn}의 수식이 {cn}을 참조하지 않아 그 칸을 바꿔도 결과가 변하지 않습니다.")
+    old, before = change.Value2, target.Value2
+    ok = target.GoalSeek(goal, change)
+    xl.Calculate()
+    got = target.Value2
+    if not (ok and isinstance(got, (int, float)) and abs(got - goal) <= max(0.01, abs(goal) * 1e-6)):
+        change.Value2 = old
+        xl.Calculate()
+        stop = f"{got:,.2f}" if isinstance(got, (int, float)) else str(got)
+        raise PlanError(f"{cn}을 바꿔서는 {tn}을 {goal:,.2f}으로 만들 수 없었습니다(Excel이 {stop}에서 멈춤). "
+                        f"{cn}은 원래 값 {old:,.2f}으로 돌렸습니다.")
+    return [f"목표값 찾기: {tn}이 {goal:,.2f}이 되려면 {cn} = {change.Value2:,.2f}",
+            f"  {cn}: {old:,.2f} → {change.Value2:,.2f}, {tn}: {before:,.2f} → {got:,.2f}" if isinstance(before, (int, float))
+            else f"  {cn}: {old:,.2f} → {change.Value2:,.2f}",
+            "  (바꿀 칸 값을 실제로 바꿨습니다. 원래 값이 필요하면 되돌리기를 누르세요)"]
 
 
 def in_place(ws, xl, r, formula):
