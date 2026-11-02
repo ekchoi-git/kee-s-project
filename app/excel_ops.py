@@ -196,10 +196,13 @@ def value_range(ws, address):
 
 
 def source_changes(t, plan):
-    """원본 표 안을 바꾸는 내용(확인 창에 보여줄 줄). 원본 수정 지시가 없으면 빈 목록(실행 단계에서 막힘)."""
+    """원본 표 안을 바꾸는 내용(확인 창에 보여줄 줄). 원본 수정 지시가 없으면 빈 목록(실행 단계에서 막힘).
+    목표값 찾기는 입력 칸 값을 바꾸는 것이 곧 작업이라 지시와 상관없이 확인받는다."""
+    g = plan.get("goal_seek")
+    lines = [f"{label(t.ws, t.ws.Range(g['change']))} 값을 목표값 찾기 답으로 바꿈"
+             f"(지금 {t.ws.Range(g['change']).Text}), 결과는 새 시트에 정리"] if g else []
     if not plan["edit_source"]:
-        return []
-    lines = []
+        return lines
     for c in plan["to_number"]:
         j = t.headers.index(c)
         hits = rows_where(t, j, lambda x: _num(x) is not None)
@@ -835,7 +838,7 @@ def _execute(t, plan, stage, progress=None):
     stage[0] = "목표값 찾기"
     progress(stage[0])
     if plan.get("goal_seek"):
-        done += goal_seek(t, plan["goal_seek"])
+        done += goal_seek(t, plan["goal_seek"], plan["summary"])
 
     stage[0] = "피벗"
     progress(stage[0])
@@ -916,8 +919,8 @@ def label(ws, cell):
     return cell.Address.replace("$", "")
 
 
-def goal_seek(t, g):
-    """목표값 찾기: target 수식 결과가 goal이 되도록 change 칸 값을 Excel이 찾는다.
+def goal_seek(t, g, summary=""):
+    """목표값 찾기: target 수식 결과가 goal이 되도록 change 칸 값을 Excel이 찾고, 답은 새 시트에 표로 남긴다.
     엉뚱한 칸을 골랐으면 실행 전에 막고, 답을 못 찾으면 원래 값으로 돌린 뒤 실패를 알린다."""
     ws, xl = t.ws, t.xl
     target, change, goal = ws.Range(g["target"]), ws.Range(g["change"]), g["goal"]
@@ -942,10 +945,22 @@ def goal_seek(t, g):
         stop = f"{got:,.2f}" if isinstance(got, (int, float)) else str(got)
         raise PlanError(f"{cn}을 바꿔서는 {tn}을 {goal:,.2f}으로 만들 수 없었습니다(Excel이 {stop}에서 멈춤). "
                         f"{cn}은 원래 값 {old:,.2f}으로 돌렸습니다.")
+    out = new_sheet(t, "목표값 찾기")
+    out.Range("A1").Value2 = "목표값 찾기 결과"
+    out.Range("A2").Value2 = summary
+    out.Range("A4:D6").Value2 = (("구분", "항목(칸)", "원래 값", "찾은 값"),
+                                  ("바꾼 칸", cn, old, change.Value2),
+                                  ("결과 칸", tn, before, got))
+    out.Range("A7:B7").Value2 = ("목표", goal)
+    out.Range("A9").Value2 = f"원본 시트 '{ws.Name}'의 {cn} 값을 찾은 값으로 바꿨습니다. 원래 값이 필요하면 셀리에서 되돌리기를 누르세요."
+    out.Range("C5:D6,B7").NumberFormat = "#,##0.##"
+    out.Range("A1,A4:D4").Font.Bold = True
+    out.Columns("A:D").AutoFit()
+    ws.Activate()  # 다음 요청이 결과 시트가 아니라 원래 양식을 대상으로 잡게(다른 새 시트 결과와 같음)
     return [f"목표값 찾기: {tn}이 {goal:,.2f}이 되려면 {cn} = {change.Value2:,.2f}",
             f"  {cn}: {old:,.2f} → {change.Value2:,.2f}, {tn}: {before:,.2f} → {got:,.2f}" if isinstance(before, (int, float))
             else f"  {cn}: {old:,.2f} → {change.Value2:,.2f}",
-            "  (바꿀 칸 값을 실제로 바꿨습니다. 원래 값이 필요하면 되돌리기를 누르세요)"]
+            f"  결과 정리: 새 시트 '{out.Name}' (원본 {cn} 값도 바뀜, 되돌리기 가능)"]
 
 
 def in_place(ws, xl, r, formula):

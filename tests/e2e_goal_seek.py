@@ -4,7 +4,7 @@
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import win32com.client as w
-from app.excel_ops import PlanError, Target, Undo, execute, validate
+from app.excel_ops import PlanError, Target, Undo, execute, source_changes, validate
 
 CELLS = {
     "B2": "카페 월 손익계산서", "B4": "일 판매량(잔)", "C4": 250, "B5": "평균 가격(원)", "C5": 4500,
@@ -35,16 +35,19 @@ try:
                 "pivot": None, "classify": None, "writes": [], "goal_seek": {"target": tgt, "goal": goal, "change": chg}}
         assert not validate(plan, t.headers), validate(plan, t.headers)
         old = ws.Range(chg).Value2
+        asked = bool(source_changes(t, plan))  # 원본 칸을 바꾸므로 실행 전 확인 창이 떠야 함
         u = Undo(t)
         u.before()
         try:
             msg = execute(t, plan)
             got = ws.Range(chg).Value2
+            sheet = wb.Worksheets("목표값 찾기")
+            noted = sheet.Range("D5").Value2 == got and sheet.Range("C5").Value2 == old
             u.after()
             u.undo()
-            back = ws.Range(chg).Value2 == old
-            ok.append((f"{chg}→{tgt}={goal:,}: {got:,.2f} (기대 {want}), 되돌리기 {back}",
-                       want is not None and abs(got - want) <= abs(want) * 1e-4 and back))
+            back = ws.Range(chg).Value2 == old and "목표값 찾기" not in [s.Name for s in wb.Worksheets]
+            ok.append((f"{chg}→{tgt}={goal:,}: {got:,.2f} (기대 {want}), 확인 창 {asked}, 새 시트 {noted}, 되돌리기 {back}",
+                       want is not None and abs(got - want) <= abs(want) * 1e-4 and asked and noted and back))
             print("  " + "\n  ".join(msg))
         except PlanError as e:
             ok.append((f"{chg}→{tgt}={goal:,}: 막힘, 값 그대로 {ws.Range(chg).Value2 == old}",
