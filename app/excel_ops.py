@@ -13,6 +13,10 @@ class PlanError(Exception):
 class FormulaError(PlanError):
     """AI가 만든 수식 자체가 잘못된 경우. 되돌린 뒤 AI에게 고치게 할 수 있다."""
 
+    def __init__(self, msg, formulas=""):
+        super().__init__(msg)
+        self.formulas = formulas  # 화면엔 앞부분만, 재시도 때 AI에겐 전체를 보냄
+
 
 # --- 계획 검사 (PRD 8장: 허용된 작업만, 외부 통신·다른 파일·매크로 차단) ---
 ADDRESS = re.compile(r"^\$?[A-Z]{1,3}\$?[1-9]\d*(:\$?[A-Z]{1,3}\$?[1-9]\d*)?$")
@@ -722,7 +726,8 @@ def _execute(t, plan, stage, progress=None):
                 except pywintypes.com_error as e:
                     # 0x800A03EC 등: Excel이 수식 자체를 거부(문법 오류·없는 함수·잘못된 참조). 번호 대신 칸과 수식을 알려 AI가 고치게 함
                     raise FormulaError(f"Excel이 {w['address']} 수식을 받아들이지 않았습니다(문법 오류, 지원하지 않는 함수, 잘못된 참조 등).\n"
-                                       f"  {w['address']} {w['content'][:200]}") from e
+                                       f"  {w['address']} {w['content'][:200]}",
+                                       f"{w['address']} {w['content']}") from e
             elif "\t" in w["content"] or "\n" in w["content"]:
                 # 머리글처럼 탭·줄바꿈으로 이어 붙인 글자는 칸마다 나눠 씀(범위 전체에 같은 글자가 들어가지 않게)
                 grid = [line.split("\t") for line in w["content"].split("\n")]
@@ -744,6 +749,7 @@ def _execute(t, plan, stage, progress=None):
                 r.Value2 = w["content"]
         xl.Calculate()
         progress("수식 계산 완료")
+        written = "\n".join(f"{w['address']} {w['content']}" for w in plan["writes"] if w["content"].startswith("="))
         try:
             circ = out_ws.CircularReference
         except Exception:
@@ -752,7 +758,7 @@ def _execute(t, plan, stage, progress=None):
             # Excel은 순환 고리 중 한 칸만 알려주므로 그 칸 수식이 원인이라고 단정하지 않는다
             raise FormulaError(f"새 수식들이 서로 또는 자기 결과를 다시 참조합니다(순환 참조, Excel이 표시한 칸: "
                                f"{circ.Address.replace('$', '')}).\n  쓴 수식: "
-                               + "; ".join(f"{w['address']} {w['content'][:120]}" for w in plan["writes"] if w["content"].startswith("=")))
+                               + "; ".join(f"{w['address']} {w['content'][:120]}" for w in plan["writes"] if w["content"].startswith("=")), written)
         errs, broken = {}, []
         for w, r in zip(plan["writes"], ranges):
             out = r.SpillingToRange if r.Count == 1 and dyn and r.HasSpill else r
@@ -766,7 +772,7 @@ def _execute(t, plan, stage, progress=None):
         if fatal or broken:
             detail = ", ".join(f"{k} {v}칸" for k, v in errs.items())
             raise FormulaError(f"수식이 오류를 냈습니다({detail}). 결과 칸이 모두 오류이거나 지원하지 않는 함수, "
-                               "결과가 들어갈 자리가 막혀 있을 수 있습니다." + "".join(f"\n  {b}" for b in broken))
+                               "결과가 들어갈 자리가 막혀 있을 수 있습니다." + "".join(f"\n  {b}" for b in broken), written)
         for r in ranges:
             carry_formats(t, r.SpillingToRange if r.Count == 1 and dyn and r.HasSpill else r)
         if out_ws is not ws:

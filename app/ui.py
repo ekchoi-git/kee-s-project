@@ -809,7 +809,8 @@ class Window(QWidget):
             else:
                 # 수식이 틀렸으면 이미 원래대로 되돌린 상태: 오류를 알려주고 AI가 한 번만 고쳐 다시 실행
                 self.say(f"{e}\n→ AI에게 오류를 알려 수식을 고쳐 다시 실행합니다.", "err")
-                fix = f"방금 계획을 실행했더니 수식 오류가 나서 되돌렸다:\n{e}\n같은 요청을 오류가 나지 않는 수식으로 다시 계획하라. 규칙에 이 작업의 검증된 방식이 있으면 새 방식을 만들지 말고 그 형태를 글자 그대로 따른다."
+                full = f"\n틀린 수식 전체:\n{e.formulas}" if e.formulas else ""
+                fix = f"방금 계획을 실행했더니 수식 오류가 나서 되돌렸다:\n{e}{full}\n같은 요청을 오류가 나지 않는 수식으로 다시 계획하라. 규칙에 이 작업의 검증된 방식이 있으면 새 방식을 만들지 말고 그 형태를 글자 그대로 따른다."
         except PlanError as e:
             self.say(str(e), "err")
         except Exception as e:  # 예상 못 한 Excel 오류에도 창이 '적용 중'에 멈추지 않게
@@ -853,7 +854,9 @@ class Window(QWidget):
             except Exception as e2:
                 state = f"자동 복구도 실패했습니다({excel_error(e2)}). 파일을 저장하지 말고 닫은 뒤 다시 여는 것을 권합니다."
             reason = str(e) if isinstance(e, PlanError) else excel_error(e)
-            raise (FormulaError if isinstance(e, FormulaError) else PlanError)(f"{reason}\n→ {state}")
+            if isinstance(e, FormulaError):
+                raise FormulaError(f"{reason}\n→ {state}", e.formulas)
+            raise PlanError(f"{reason}\n→ {state}")
         finally:
             t.xl.ScreenUpdating = True
         u.after()
