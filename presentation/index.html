@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>셀리 소개</title>
+<link rel="icon" href="assets/celly-icon.png">
+<link rel="stylesheet" href="assets/step-window.css">
+<style>
+@font-face { font-family: Pretendard; src: url(assets/Pretendard-Regular.ttf) format("truetype"); font-weight: 400; font-display: block; }
+@font-face { font-family: Pretendard; src: url(assets/Pretendard-Bold.ttf) format("truetype"); font-weight: 700; font-display: block; }
+
+:root {
+  --bg: #f4f4f5;
+  --ink: #2b2b2e;
+  --sub: #6b6b72;
+  --mute: #9a9aa2;
+  --blue: #4f6ef7;
+  --blue-soft: #e9edfe;
+  --line: #c9cff5;
+  --card: #ffffff;
+  --gray-box: #e8e8ea;
+  --hd-font: Pretendard, "Malgun Gothic", sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-snap-type: y proximity; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--hd-font); -webkit-font-smoothing: antialiased; word-break: keep-all; }
+b, strong { font-weight: 700; }
+
+/* 템플릿의 안내선 틀과 오른쪽 위 점 세 개 */
+.frame { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+.frame i { position: absolute; background: var(--line); opacity: .75; }
+.frame .t { left: 0; right: 0; top: 22px; height: 1px; }
+.frame .b { left: 0; right: 0; bottom: 22px; height: 1px; }
+.frame .l { top: 0; bottom: 0; left: 14px; width: 1px; }
+.frame .r { top: 0; bottom: 0; right: 14px; width: 1px; }
+.dots { position: fixed; top: 34px; right: 34px; z-index: 6; display: flex; gap: 4px; pointer-events: none; }
+.dots i { width: 5px; height: 5px; border-radius: 50%; background: #b9c2f7; }
+.progress { position: fixed; left: 0; top: 0; height: 3px; width: 100%; background: var(--blue); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); z-index: 7; }
+
+section { min-height: 100vh; scroll-snap-align: start; position: relative; padding: 64px 56px 56px; display: flex; flex-direction: column; }
+.wrap { width: 100%; max-width: 1180px; margin: 0 auto; }
+
+/* 본문 장 머리: ✓ 큰 제목 + 작은 회색 설명 + 가로선 */
+.head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding: 6px 0 22px; border-bottom: 1px solid var(--line); margin: 0 -56px; padding-left: 56px; padding-right: 56px; }
+.head h2 { margin: 0; font-size: clamp(30px, 4.2vw, 50px); letter-spacing: -.02em; display: flex; align-items: center; gap: 14px; }
+.head h2 svg { width: .62em; height: .62em; flex: none; }
+.head p { margin: 0; color: var(--mute); font-size: 15px; }
+.body { flex: 1; display: flex; align-items: center; padding-top: 36px; }
+
+/* 스크롤에 맞춰 나타나기 */
+.rv { opacity: 0; transform: translateY(26px); transition: opacity .7s cubic-bezier(.2,.7,.1,1), transform .7s cubic-bezier(.2,.7,.1,1); transition-delay: calc(var(--d, 0) * 110ms); }
+.in .rv, .rv.in { opacity: 1; transform: none; }
+
+/* 1. 표지 */
+#cover { align-items: center; justify-content: center; text-align: center; padding-top: 48px; padding-bottom: 40px; }
+.cover-title { margin: 0; line-height: 1.12; letter-spacing: -.035em; }
+.cover-title .l1 { display: block; font-weight: 400; font-size: clamp(34px, 5.6vh, 66px); color: #3a3a3e; }
+.cover-title .l2 { display: block; font-weight: 700; font-size: clamp(42px, 7.6vh, 92px); color: var(--blue); }
+.cover-sub { margin: 14px 0 4px; font-weight: 700; font-size: clamp(15px, 2.1vh, 21px); }
+.cover-desc { margin: 0; color: var(--mute); font-size: clamp(13px, 1.6vh, 16px); }
+.pills { display: flex; gap: 22px; justify-content: center; align-items: center; margin-top: 16px; font-size: 15px; flex-wrap: wrap; }
+.pill { display: inline-block; background: var(--blue); color: #fff; font-weight: 700; font-size: 14px; padding: 6px 16px; border-radius: 999px; margin-right: 8px; }
+.demo { width: min(900px, 100%, calc((100vh - 400px) * 1.5)); min-width: min(320px, 100%); margin: 26px auto 0; }
+.scroll-hint { position: absolute; bottom: 34px; left: 56px; font-size: 11px; letter-spacing: .2em; color: var(--mute); }
+
+/* html-demo 창을 밝은 테마로 */
+.hd-win { background: #fff; border-radius: 12px; box-shadow: 0 0 0 1px #dcdfea, 0 30px 70px -30px rgba(40,50,110,.35); }
+.hd-bar { background: #fff; color: #5f5e5a; border-bottom: 1px solid #ececf0; }
+.hd-lights, .hd-bar > svg { display: none; }
+.hd-tab.on { background: #f1f2f6; color: #1f1f1d; }
+.hd-view, .hd-stage { background: #fff; }
+.hd-steps { background: #fff; border-top: 1px solid #ececf0; }
+.hd-steps button { color: #8a8e96; font-size: 13px; }
+.hd-steps button:hover, .hd-steps button.on { color: #1f1f1d; }
+.hd-steps button:hover { background: #f4f5f8; }
+.hd-n { color: #b0b3ba; }
+.hd-steps button.on .hd-n { color: var(--blue); }
+.hd-steps i { background: linear-gradient(90deg, var(--blue) calc(var(--p) * 100%), transparent calc(var(--p) * 100%)), #eceef3; }
+
+/* 데모 안: 왼쪽 Excel, 오른쪽 셀리 (1200 × 750, 접두어 cly-) */
+.cly { font-family: var(--hd-font); color: #1f1f1d; }
+.cly-xl { position: absolute; left: 0; top: 0; width: 780px; height: 750px; background: #fff; border-right: 1px solid #e3e3e3; font-family: "Segoe UI", var(--hd-font); }
+.cly-xtitle { height: 36px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #f3f3f3; font-size: 13px; color: #333; }
+.cly-xlogo { width: 18px; height: 18px; border-radius: 3px; background: #1d6f42; color: #fff; font: 700 11px/18px sans-serif; text-align: center; }
+.cly-xmenu { height: 32px; display: flex; align-items: center; gap: 20px; padding: 0 16px; background: #f3f3f3; font-size: 13.5px; color: #333; border-bottom: 1px solid #e1e1e1; }
+.cly-xfx { height: 32px; display: flex; align-items: center; gap: 12px; padding: 0 10px; font-size: 13px; border-bottom: 1px solid #e1e1e1; }
+.cly-xfx .nm { width: 80px; border: 1px solid #d6d6d6; border-radius: 3px; padding: 2px 6px; }
+.cly-xfx .fx { color: #777; font-style: italic; }
+.cly-grid { position: absolute; left: 0; top: 100px; width: 780px; height: 598px; overflow: hidden; }
+.cly-grid table { border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.cly-grid th, .cly-grid td { height: 22px; border: 1px solid #e3e3e3; padding: 0 5px; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+.cly-grid thead th { background: #f3f3f3; color: #555; font-weight: 400; text-align: center; }
+.cly-grid tbody th { background: #f3f3f3; color: #555; font-weight: 400; text-align: center; width: 36px; }
+.cly-grid td.n { text-align: right; }
+.cly-res { position: absolute; left: 0; top: 0; }
+.cly-res td.h { font-weight: 700; background: #eef1fe; }
+.cly-tabs { position: absolute; left: 0; bottom: 22px; width: 780px; height: 30px; display: flex; align-items: center; gap: 4px; padding: 0 12px; background: #f3f3f3; border-top: 1px solid #e1e1e1; font-size: 13px; color: #444; }
+.cly-tabs span { padding: 5px 12px; }
+.cly-tabs .on { background: #fff; color: #1d6f42; font-weight: 700; box-shadow: inset 0 -2px #1d6f42; }
+.cly-status { position: absolute; left: 0; bottom: 0; width: 780px; height: 22px; background: #f3f3f3; font-size: 12px; color: #555; padding: 3px 12px; }
+
+.cly-app { position: absolute; left: 780px; top: 0; width: 420px; height: 750px; background: #fafaf8; font-size: 14.5px; }
+.cly-head { height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #e8e6df; background: #fff; }
+.cly-head b { font-size: 19px; }
+.cly-head span { color: #5f5e5a; font-size: 13px; }
+.cly-hello { position: absolute; left: 22px; right: 22px; top: 92px; text-align: center; }
+.cly-hello p { margin: 0 0 22px; color: #1f1f1d; font-size: 15.5px; line-height: 1.55; }
+.cly-hello small { display: block; color: #5f5e5a; margin-bottom: 10px; font-size: 13px; }
+.cly-hello em { display: block; font-style: normal; border: 1px solid #dcdad3; border-radius: 17px; padding: 7px 14px; margin: 0 auto 8px; background: #fff; width: fit-content; font-size: 13px; }
+.cly-me { position: absolute; right: 16px; top: 72px; max-width: 300px; background: #f1efe8; border-radius: 14px; padding: 9px 13px; line-height: 1.5; }
+.cly-busy { position: absolute; left: 18px; top: 160px; display: flex; align-items: center; gap: 10px; color: #b4532a; font-size: 14px; }
+.cly-spin { position: relative; width: 20px; height: 20px; }
+.cly-spin i { position: absolute; left: 8.5px; top: 0; width: 3px; height: 3px; border-radius: 50%; background: #4f6ef7; transform-origin: 1.5px 10px; }
+.cly-bot { position: absolute; left: 16px; right: 16px; top: 156px; background: #fff; border: 1px solid #e8e6df; border-radius: 14px; padding: 12px 14px; line-height: 1.55; font-size: 14px; }
+.cly-bot b { display: block; margin-bottom: 4px; font-size: 15px; }
+.cly-bot p { margin: 0 0 8px; }
+.cly-ctx { position: absolute; left: 12px; right: 12px; top: 568px; height: 62px; border: 1px solid #dcdad3; border-bottom: 0; border-radius: 16px 16px 0 0; background: #f5f4ef; padding: 9px 14px; font-size: 13px; }
+.cly-ctx div { display: flex; justify-content: space-between; }
+.cly-ctx .g { color: #3b9a3b; margin-right: 6px; }
+.cly-ctx .s { color: #5f5e5a; margin-top: 6px; }
+.cly-in { position: absolute; left: 12px; right: 12px; top: 628px; height: 106px; border: 1px solid #dcdad3; border-radius: 16px; background: #fff; padding: 12px 14px; line-height: 1.5; }
+.cly-in .ph { color: #9a9890; }
+.cly-in.focus { border-color: #a9b6f7; box-shadow: 0 0 0 3px #e9edfe; }
+.cly-caret { display: inline-block; width: 1.5px; height: 17px; background: #1f1f1d; vertical-align: -3px; margin-left: 1px; }
+.cly-send { position: absolute; right: 14px; bottom: 12px; width: 32px; height: 32px; border-radius: 16px; background: #1f1f1d; display: grid; place-items: center; }
+.cly-send.dis { background: #b4b2a9; }
+.cly-undo { position: absolute; left: 12px; bottom: 16px; width: 22px; height: 22px; }
+
+/* 2. 원인과 결과 */
+.cause { display: grid; grid-template-columns: 1fr 70px 0.8fr; gap: 26px; align-items: center; width: 100%; }
+.cause-list { display: grid; gap: 18px; }
+.cause-item { display: flex; gap: 22px; align-items: center; background: var(--gray-box); padding: 24px 26px; }
+.tag { flex: none; background: var(--blue); color: #fff; font-weight: 700; padding: 9px 16px; font-size: 16px; }
+.cause-item p { margin: 0; font-size: 17px; line-height: 1.55; color: #3a3a3e; }
+.cause-item p b { color: var(--ink); }
+.arrow { width: 70px; height: 70px; }
+.result { background: #fff; border: 1px solid var(--line); text-align: center; }
+.result h3 { margin: 0; background: var(--blue); color: #fff; padding: 20px; font-size: 24px; }
+.result p { margin: 0; padding: 36px 28px; font-size: 18px; line-height: 1.7; color: #3a3a3e; }
+.result p strong { display: block; font-size: 26px; color: var(--ink); margin-bottom: 10px; }
+
+/* 3. 비교 */
+.compare { display: grid; grid-template-columns: 1fr 230px 1fr; gap: 26px; width: 100%; align-items: start; }
+.col h3 { margin: 0 0 4px; padding: 18px; text-align: center; font-size: 22px; background: #fff; border: 1px solid var(--line); }
+.col.hot h3 { color: var(--blue); border: 2px solid var(--blue); }
+.col ul, .mid ul { list-style: none; margin: 0; padding: 0; }
+.col li { padding: 0 8px; height: 64px; display: flex; align-items: center; justify-content: center; text-align: center; border-bottom: 1px solid #c9c9cf; font-size: 17px; color: #4a4a50; }
+.col.hot li { color: var(--ink); font-weight: 700; }
+.mid { background: var(--blue); color: #fff; text-align: center; padding: 0 0 8px; margin-top: -14px; }
+.mid h3 { margin: 0; padding: 24px 0 14px; font-size: 22px; }
+.mid li { height: 64px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; border-top: 1px solid rgba(255,255,255,.3); }
+
+/* 4. 영상 */
+.video { width: min(100%, calc((100vh - 260px) * 16 / 9)); margin: 0 auto; }
+.video video { display: block; width: 100%; background: #111; box-shadow: 0 0 0 1px var(--line), 0 30px 70px -34px rgba(40,50,110,.4); }
+
+/* 5. 카드 */
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; width: 100%; }
+.card { background: #fff; border: 1px solid var(--line); padding: 30px 22px 26px; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.card svg { width: 54px; height: 54px; margin-bottom: 14px; }
+.card h3 { margin: 0 0 14px; font-size: 22px; }
+.say { background: var(--blue-soft); color: #2c3fae; border-radius: 12px; padding: 12px 14px; font-size: 15px; line-height: 1.5; margin-bottom: 12px; width: 100%; }
+.card p { margin: 0; color: var(--sub); font-size: 15px; line-height: 1.55; }
+.band { margin-top: 26px; background: var(--blue); color: #fff; font-weight: 700; font-size: 19px; padding: 20px 24px; text-align: center; display: flex; gap: 10px; align-items: center; justify-content: center; }
+.band svg { width: 22px; height: 22px; flex: none; }
+
+/* 6. 체크 목록 */
+.lead { text-align: center; color: var(--sub); font-size: 18px; line-height: 1.7; margin: 0 0 30px; }
+.checks { display: grid; gap: 16px; }
+.checks div { background: var(--gray-box); padding: 24px 30px; font-size: 22px; display: flex; gap: 16px; align-items: center; }
+.checks svg { width: 22px; height: 22px; flex: none; }
+
+/* 7. 마무리 */
+#end { align-items: center; justify-content: center; text-align: center; }
+#end .cover-title .l1 { font-size: clamp(38px, 7vh, 84px); }
+#end .cover-title .l2 { font-size: clamp(44px, 8.6vh, 104px); }
+
+@media (max-width: 860px) {
+  section { padding: 56px 20px 44px; }
+  .head { margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
+  .cause, .compare { grid-template-columns: 1fr; }
+  .arrow { transform: rotate(90deg); margin: 0 auto; }
+  .cards { grid-template-columns: 1fr 1fr; }
+  .mid { margin-top: 0; }
+  .checks div { font-size: 17px; padding: 18px; }
+  .scroll-hint { left: 20px; }
+}
+@media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .rv { opacity: 1; transform: none; transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="progress" aria-hidden="true"></div>
+<div class="frame" aria-hidden="true"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
+<div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="#4f6ef7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="check-c" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#fff"/><path d="M7 12.5l3.3 3.3L17 9" fill="none" stroke="#4f6ef7" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<main>
+<!-- 1. 표지 + 시작 모션 -->
+<section id="cover" class="in">
+  <h1 class="cover-title">
+    <span class="l1 rv" style="--d:0">손이 많이 가는 엑셀 작업,</span>
+    <span class="l2 rv" style="--d:1">이제 말로 하세요.</span>
+  </h1>
+  <p class="cover-sub rv" style="--d:2">엑셀 AI 도우미, 셀리</p>
+  <p class="cover-desc rv" style="--d:2">열려 있는 엑셀에 평소 말로 요청하면, 셀리가 직접 정리해 드립니다.</p>
+  <div class="pills rv" style="--d:3"><span><span class="pill">발표자</span>[이름]</span><span><span class="pill">소속</span>[부서]</span></div>
+  <div class="demo rv" style="--d:4" id="demo"></div>
+  <div class="scroll-hint">SCROLL ↓</div>
+</section>
+
+<!-- 2. 문제 -->
+<section id="problem">
+  <div class="head"><h2><svg><use href="#check"/></svg>이런 경험 있으시죠?</h2><p>엑셀 정리, 매번 손이 많이 갑니다</p></div>
+  <div class="body"><div class="wrap cause">
+    <div class="cause-list">
+      <div class="cause-item rv" style="--d:0"><span class="tag">함수 찾기</span><p>합계·피벗을 만들 때마다 <b>함수와 설정법을 검색</b>합니다.</p></div>
+      <div class="cause-item rv" style="--d:1"><span class="tag">반복 작업</span><p>필터, 정렬, 복사·붙여넣기를 <b>몇 번씩 되풀이</b>합니다.</p></div>
+      <div class="cause-item rv" style="--d:2"><span class="tag">파일 왕복</span><p>다른 AI는 파일을 <b>올리고, 결과를 다시 내려받아야</b> 합니다.</p></div>
+    </div>
+    <svg class="arrow rv" style="--d:3" viewBox="0 0 70 70" aria-hidden="true"><path d="M6 25h30V10l28 25-28 25V45H6z" fill="#2b2b2e"/></svg>
+    <div class="result rv" style="--d:4">
+      <h3>결과</h3>
+      <p><strong>정리에만 시간이 다 갑니다</strong>데이터가 1만 행을 넘으면<br>처리하고 검산하는 데도<br>시간이 오래 걸립니다.</p>
+    </div>
+  </div></div>
+</section>
+
+<!-- 3. 셀리 소개 -->
+<section id="intro">
+  <div class="head"><h2><svg><use href="#check"/></svg>셀리를 소개합니다</h2><p>열려 있는 엑셀에 말로 시키는 AI 도우미</p></div>
+  <div class="body"><div class="wrap compare">
+    <div class="col rv" style="--d:0"><h3>지금까지</h3><ul>
+      <li>메뉴와 함수를 직접 찾음</li><li>함수·피벗 사용법을 알아야 함</li><li>파일을 올리고 내려받기 반복</li><li>결과를 하나하나 직접 검산</li><li>실수하면 손으로 되돌리기</li></ul></div>
+    <div class="mid rv" style="--d:1"><h3>비교</h3><ul>
+      <li>시작 방법</li><li>필요한 지식</li><li>작업 위치</li><li>결과 확인</li><li>실수했을 때</li></ul></div>
+    <div class="col hot rv" style="--d:2"><h3>셀리와 함께</h3><ul>
+      <li>평소 말로 요청</li><li>몰라도 괜찮음</li><li>지금 열린 엑셀에서 바로</li><li>엑셀 계산식으로 남아 확인 가능</li><li>버튼 한 번으로 되돌리기</li></ul></div>
+  </div></div>
+</section>
+
+<!-- 4. 시연 영상 -->
+<section id="video">
+  <div class="head"><h2><svg><use href="#check"/></svg>시연 영상</h2><p>회사별·연도별 지불금액을 새 시트에 정리하기</p></div>
+  <div class="body"><div class="video rv"><video src="assets/demo.mp4" controls preload="metadata" playsinline></video></div></div>
+</section>
+
+<!-- 5. 기능 -->
+<section id="features">
+  <div class="head"><h2><svg><use href="#check"/></svg>셀리가 할 수 있는 일</h2><p>이렇게 말하면, 이렇게 됩니다</p></div>
+  <div class="body"><div class="wrap">
+    <div class="cards">
+      <div class="card rv" style="--d:0">
+        <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8v38h38"/><path d="M8 18h38M8 28h38M8 38h38" stroke="#c9cff5"/><path d="M14 38l9-12 8 6 11-16"/><circle cx="23" cy="26" r="2.2" fill="#4f6ef7"/><circle cx="31" cy="32" r="2.2" fill="#4f6ef7"/></svg>
+        <h3>합계·요약</h3><div class="say">“회사별 연도별 금액 합계를 수식으로 만들어줘”</div><p>합계표나 피벗을 엑셀 계산식으로 만듭니다.</p></div>
+      <div class="card rv" style="--d:1">
+        <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10h38L32 27v14l-10 5V27z"/></svg>
+        <h3>골라보기·정렬</h3><div class="say">“금액 1억 넘는 것만 보이게 하고 큰 순서로 정렬해줘”</div><p>조건에 맞는 행만 남기고 순서를 맞춥니다.</p></div>
+      <div class="card rv" style="--d:2">
+        <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="8" width="16" height="16" rx="3"/><rect x="31" y="8" width="16" height="16" rx="3"/><rect x="7" y="31" width="16" height="16" rx="3"/><rect x="31" y="31" width="16" height="16" rx="3" fill="#e9edfe"/></svg>
+        <h3>자동 분류</h3><div class="say">“거래 설명을 보고 유형을 분류해줘”</div><p>글 내용을 읽고 알맞은 유형을 새 열에 적습니다.</p></div>
+      <div class="card rv" style="--d:3">
+        <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="27" cy="27" r="19"/><circle cx="27" cy="27" r="11"/><circle cx="27" cy="27" r="3" fill="#4f6ef7"/></svg>
+        <h3>목표값 찾기</h3><div class="say">“영업이익이 0이 되려면 매출이 얼마여야 해?”</div><p>원하는 결과가 나오는 입력값을 찾아 줍니다.</p></div>
+    </div>
+    <div class="band rv" style="--d:4"><svg><use href="#check-c"/></svg>이 밖에도 중복·빈칸 찾기, 여러 시트 합치기까지 말로 요청할 수 있습니다.</div>
+  </div></div>
+</section>
+
+<!-- 6. 안심 -->
+<section id="safe">
+  <div class="head"><h2><svg><use href="#check"/></svg>안심하고 쓰세요</h2><p>회사 데이터를 다루니까, 안전장치부터</p></div>
+  <div class="body"><div class="wrap">
+    <p class="lead rv">셀리는 결과를 바로 엑셀에 적용합니다.<br>그래서 잘못됐을 때 되돌리는 방법을 함께 갖추고 있습니다.</p>
+    <div class="checks">
+      <div class="rv" style="--d:1"><svg><use href="#check"/></svg><span><b>되돌리기 버튼 한 번</b>이면 직전 작업 전으로 돌아갑니다.</span></div>
+      <div class="rv" style="--d:2"><svg><use href="#check"/></svg><span>원본 표를 바꾸는 작업은 <b>먼저 물어보고</b> 진행합니다.</span></div>
+      <div class="rv" style="--d:3"><svg><use href="#check"/></svg><span>결과는 <b>엑셀 계산식</b>으로 남아 직접 확인할 수 있습니다.</span></div>
+      <div class="rv" style="--d:4"><svg><use href="#check"/></svg><span>작업 중 오류가 나면 <b>자동으로 원래 상태</b>로 되돌립니다.</span></div>
+    </div>
+  </div></div>
+</section>
+
+<!-- 7. 마무리 -->
+<section id="end">
+  <h2 class="cover-title">
+    <span class="l1 rv" style="--d:0">손 많이 가는 엑셀 작업,</span>
+    <span class="l2 rv" style="--d:1">이제 셀리에게 말로.</span>
+  </h2>
+  <p class="cover-sub rv" style="--d:2">경청해 주셔서 감사합니다</p>
+  <p class="cover-desc rv" style="--d:2">써 보고 싶으시거나 궁금한 점이 있으면 언제든 연락 주세요.</p>
+  <div class="pills rv" style="--d:3"><span><span class="pill">발표자</span>[이름]</span><span><span class="pill">문의</span>[연락처]</span></div>
+</section>
+</main>
+
+<script src="assets/step-window.js"></script>
+<script>
+(() => {
+  const { ease, typed, cue, glide } = HTMLDemo;
+
+  // 데모 파일 '거래내역_테스트용_500행.xlsx'의 실제 값
+  const DATA = [
+    ['SYN-2023-000001','2023-03-25','구매비',56165100,'니켈 원료 구매대금 / 3월 / 가상사업 7','F교육'],
+    ['SYN-2022-000002','2022-12-23','임차료',31795300,'창고 월 임대료 / 12월 / 가상사업 9','J솔루션'],
+    ['SYN-2023-000003','2023-01-07','교육훈련비',66918300,'신규 직원 교육 수강료 / 1월 / 가상사업 1','H테크'],
+    ['SYN-2022-000004','2022-10-27','운반비',96197200,'제품 육상 운송료 / 10월 / 가상사업 17','I소재'],
+    ['SYN-2025-000005','2025-12-01','구매비',29855000,'사무용 소모품 자재 구매대금 / 12월 / 가상사업 14','E물류'],
+    ['SYN-2024-000006','2024-02-03','용역비',73164600,'운영 인력 지원 인건비 / 2월 / 가상사업 13','B서비스'],
+    ['SYN-2022-000007','2022-06-07','용역비',51659800,'가상 서버 인프라 월 사용료 / 6월 / 가상사업 17','F교육'],
+    ['SYN-2022-000008','2022-04-06','임차료',87292000,'창고 월 임대료 / 4월 / 가상사업 17','I소재'],
+    ['SYN-2022-000009','2022-08-28','교육훈련비',65875000,'직원 직무 교육비 / 8월 / 가상사업 19','I소재'],
+    ['SYN-2022-000010','2022-09-15','운반비',45349100,'제품 육상 운송료 / 9월 / 가상사업 21','A상사'],
+    ['SYN-2023-000011','2023-11-24','교육훈련비',88738400,'직원 전문 교육 수강료 / 11월 / 가상사업 8','I소재'],
+    ['SYN-2023-000012','2023-08-08','용역비',2764100,'기술 인력 파견 용역대금 / 8월 / 가상사업 9','A상사'],
+    ['SYN-2024-000013','2024-01-05','운반비',66719600,'출하 화물 하역비 / 1월 / 가상사업 18','B서비스'],
+    ['SYN-2022-000014','2022-12-04','건설직접비',36543800,'배관 보강 공사 용역대금 / 12월 / 가상사업 13','H테크'],
+    ['SYN-2023-000015','2023-01-06','용역비',2180400,'클라우드 서버 인프라 사용료 / 1월 / 가상사업 13','H테크'],
+    ['SYN-2023-000016','2023-05-04','구매비',8575600,'작업용 공구 자재 구매대금 / 5월 / 가상사업 16','J솔루션'],
+    ['SYN-2024-000017','2024-03-16','용역비',83015400,'시스템 운영 인력 파견 용역비 / 3월 / 가상사업 13','J솔루션'],
+    ['SYN-2023-000018','2023-08-23','교육훈련비',33322800,'직원 전문 교육 수강료 / 8월 / 가상사업 6','H테크'],
+  ];
+  // 같은 파일을 회사명 × 연도로 합산한 결과
+  const SUMS = [
+    ['(빈 값)',149809600,219435200,200458400,50186600],
+    ['A상사',3633997169,484548900,126004700,881530900],
+    ['B서비스',461395900,1032113200,3928474336,446480900],
+    ['C건설',726093100,209608100,3695146401,489267700],
+    ['D메탈',988259400,3463687602,3376947703,489150700],
+    ['E물류',465797500,3534688035,959434200,448775300],
+    ['F교육',626747300,646617200,176292400,477730600],
+    ['G임대',560785700,3605819000,235814800,412039700],
+    ['H테크',3751635767,491251500,765342800,323490000],
+    ['I소재',806619500,864636600,341329300,381759900],
+    ['J솔루션',340464600,3570676368,3438876434,622822300],
+  ];
+  const ROWS = 26;
+  const won = (n) => n.toLocaleString('ko-KR');
+  const ASK = '연도별, 회사별 지불금액을 새로운 시트에 넣어줘. 행에는 회사명, 열에는 연도로 구성하면 돼.';
+  const SHEET = '회사별 연도별 지불금액';
+  const LETTERS = 'ABCDEFGHI'.split('');
+
+  function grid(cols, widths, body) {
+    let h = '<table><colgroup><col style="width:36px">' + widths.map((w) => `<col style="width:${w}px">`).join('') + '</colgroup><thead><tr><th></th>' + cols.map((c) => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+    for (let r = 0; r < ROWS; r++) h += `<tr><th>${r + 1}</th>${body(r)}</tr>`;
+    return h + '</tbody></table>';
+  }
+  const dataGrid = grid(LETTERS.slice(0, 7), [128, 92, 84, 96, 196, 72, 40], (r) => {
+    if (r === 0) return ['INVOICE_NUM','INVOICE_DATE','계정명','지불금액','내용','회사명',''].map((v) => `<td>${v}</td>`).join('');
+    const d = DATA[r - 1];
+    if (!d) return '<td></td>'.repeat(7);
+    return `<td>${d[0]}</td><td>${d[1]}</td><td>${d[2]}</td><td class="n">${won(d[3])}</td><td>${d[4]}</td><td>${d[5]}</td><td></td>`;
+  });
+  const resGrid = grid(LETTERS.slice(0, 6), [130, 138, 138, 138, 138, 62], (r) => {
+    if (r === 0) return `<td class="h">회사명 \\ 연도</td>${[2022,2023,2024,2025].map((y) => `<td class="n h">${y}</td>`).join('')}<td></td>`;
+    const s = SUMS[r - 1];
+    if (!s) return '<td></td>'.repeat(6);
+    return `<td>${s[0]}</td>${s.slice(1).map((v) => `<td class="n">${won(v)}</td>`).join('')}<td></td>`;
+  });
+
+  const STAGE = `
+  <div class="cly-xl">
+    <div class="cly-xtitle"><span class="cly-xlogo">X</span>거래내역_테스트용_500행.xlsx</div>
+    <div class="cly-xmenu"><span>파일</span><span>홈</span><span>삽입</span><span>그리기</span><span>페이지 레이아웃</span><span>수식</span><span>데이터</span><span>검토</span><span>보기</span></div>
+    <div class="cly-xfx"><span class="nm">A1</span><span class="fx">fx</span><span class="fv"></span></div>
+    <div class="cly-grid"><div class="cly-data">${dataGrid}</div><div class="cly-res">${resGrid}</div></div>
+    <div class="cly-tabs"><span class="t1">더미 데이터</span><span class="t2">${SHEET}</span><span>+</span></div>
+    <div class="cly-status">준비</div>
+  </div>
+  <div class="cly-app">
+    <div class="cly-head"><b>셀리</b><span>⚿ API 키</span></div>
+    <div class="cly-hello"><p>Excel에서 파일을 열고 아래에서 파일을 고른 뒤<br>하고 싶은 일을 말로 적어주세요</p>
+      <small>이런 요청부터 해보세요:</small><em>회사별 연도별 금액 합계를 수식으로 만들어줘</em><em>계정명별 금액 합계를 피벗으로 만들어줘</em><em>거래 설명을 보고 유형을 분류해줘</em></div>
+    <div class="cly-me">${ASK}</div>
+    <div class="cly-busy"><span class="cly-spin">${Array.from({ length: 12 }, (_, i) => `<i style="transform:rotate(${i * 30}deg);opacity:${0.2 + i / 15}"></i>`).join('')}</span><span class="cly-phrase"></span></div>
+    <div class="cly-bot"><b>✔ 작업 완료</b><p>새 시트 '${SHEET}'에 회사명을 행, 거래일자에서 추출한 연도를 열로 하는 지불금액 교차표를 만듭니다.</p>대상: 거래내역_테스트용_500행.xlsx › 더미 데이터<br>• 새 시트 '${SHEET}'에 작성</div>
+    <div class="cly-ctx"><div><span><span class="g">●</span>거래내역_테스트용_500행.xlsx</span><span>⌄ 새로고침</span></div><div class="s"></div></div>
+    <div class="cly-in"><span class="txt"></span>
+      <svg class="cly-undo" viewBox="0 0 24 24" fill="none" stroke="#5f5e5a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+      <span class="cly-send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span></div>
+  </div>`;
+
+  // 화면 상태 하나를 그린다. 모든 값은 각 단계의 t에서만 계산한다.
+  function paint($, s) {
+    $('.cly-hello').style.opacity = s.hello;
+    $('.cly-me').style.opacity = s.me;
+    $('.cly-me').style.transform = `translateY(${(1 - s.me) * 10}px)`;
+    $('.cly-busy').style.display = s.phrase ? 'flex' : 'none';
+    $('.cly-phrase').textContent = s.phrase || '';
+    $('.cly-spin').style.transform = `rotate(${s.spin}deg)`;
+    $('.cly-bot').style.opacity = s.bot;
+    $('.cly-bot').style.transform = `translateY(${(1 - s.bot) * 10}px)`;
+    const box = $('.cly-in');
+    box.classList.toggle('focus', s.focus);
+    box.querySelector('.txt').innerHTML = s.text ? s.text + (s.caret ? '<span class="cly-caret"></span>' : '') : (s.caret ? '<span class="cly-caret"></span>' : '') + '<span class="ph">셀리에게 하고 싶은 일을 말로 적어주세요</span>';
+    $('.cly-send').classList.toggle('dis', !s.text);
+    const res = s.sheet === 'res';
+    $('.cly-data').style.display = res ? 'none' : 'block';
+    $('.cly-res').style.display = res ? 'block' : 'none';
+    $('.cly-res').style.clipPath = `inset(0 0 ${(1 - s.reveal) * 100}% 0)`;
+    $('.t1').className = 't1' + (res ? '' : ' on');
+    $('.t2').className = 't2' + (res ? ' on' : '');
+    $('.t2').style.display = res ? '' : 'none';
+    $('.fv').textContent = res ? '회사명 \\ 연도' : 'INVOICE_NUM';
+    $('.cly-ctx .s').textContent = '작업 시트: ' + (res ? SHEET : '더미 데이터');
+    $('.cly-status').textContent = s.status;
+  }
+  const BASE = { hello: 1, me: 0, phrase: '', spin: 0, bot: 0, focus: false, caret: false, text: '', sheet: 'data', reveal: 1, status: '준비' };
+
+  // 1단계: 입력칸을 눌러 요청을 타이핑하고 보낸다
+  const FOCUS_AT = 1.1, TYPE_FROM = 1.4, TYPE_TO = 4.6, SEND_AT = 5.5;
+  const IN = [960, 662], SEND = [1162, 716];
+  // 2단계: 셀리가 작업 중 문구를 보여 준다
+  const PHRASES = [[0, 'AI가 요청을 해석하는 중…'], [1.4, '표 구조를 살펴보는 중…'], [2.8, '수식을 다듬는 중…'], [3.9, 'Excel에 적용하는 중…']];
+  // 3단계: 새 시트가 위에서부터 채워지고 결과 안내가 뜬다
+  const SHOW_AT = 0.2, FILL_TO = 2.2, BOT_AT = 0.5;
+
+  const STEPS = [
+    { id: 'ask', name: '말로 요청', dur: 7, html: STAGE, draw(t, $) {
+      const sent = t >= SEND_AT + 0.08;
+      paint($, { ...BASE,
+        hello: sent ? 1 - ease(t, SEND_AT, SEND_AT + 0.4) : 1,
+        me: sent ? ease(t, SEND_AT + 0.1, SEND_AT + 0.6) : 0,
+        focus: t >= FOCUS_AT, caret: t >= FOCUS_AT && !sent && Math.floor(t * 2) % 2 === 0 || (t >= TYPE_FROM && t < TYPE_TO),
+        text: sent ? '' : typed(ASK, t, TYPE_FROM, TYPE_TO) });
+      const c = glide(t, [[0, 0, 1080, 420], [0.3, 0.95, IN[0], IN[1]], [4.7, 5.3, SEND[0], SEND[1]], [6.0, 6.7, 1120, 520]], [FOCUS_AT, SEND_AT]);
+      return { cursor: { ...c, hide: t > 6.2 } };
+    } },
+    { id: 'work', name: '셀리가 작업', dur: 5, html: STAGE, draw(t, $) {
+      paint($, { ...BASE, hello: 0, me: 1, phrase: cue(t, PHRASES, ''), spin: Math.floor(t * 12) * 30, status: t >= 3.9 ? '계산 중' : '준비' });
+    } },
+    { id: 'done', name: '새 시트 완성', dur: 8, html: STAGE, draw(t, $) {
+      const res = t >= SHOW_AT;
+      paint($, { ...BASE, hello: 0, me: 1, phrase: res ? '' : 'Excel에 적용하는 중…', bot: ease(t, BOT_AT, BOT_AT + 0.6),
+        sheet: res ? 'res' : 'data', reveal: ease(t, SHOW_AT, FILL_TO) });
+    } },
+  ];
+
+  const ctl = HTMLDemo.mount(document.getElementById('demo'), {
+    steps: STEPS, tabs: ['셀리 × Excel'], label: '셀리 시연', stageClass: 'cly',
+  });
+  window.__hd = ctl;
+
+  // 스크롤 진행 막대와 장별 등장
+  const bar = document.querySelector('.progress');
+  const onScroll = () => {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    bar.style.setProperty('--p', max > 0 ? scrollY / max : 0);
+  };
+  addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+  const sections = [...document.querySelectorAll('section')];
+  const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add('in')), { threshold: 0.25 });
+  sections.forEach((s) => io.observe(s));
+
+  // 발표용 넘기기: 화살표·PageUp/Down·스페이스로 한 장씩
+  addEventListener('keydown', (e) => {
+    if (e.target.closest('video, button, input')) return;
+    const next = ['ArrowDown', 'ArrowRight', 'PageDown', ' '].includes(e.key);
+    const prev = ['ArrowUp', 'ArrowLeft', 'PageUp'].includes(e.key);
+    if (!next && !prev) return;
+    e.preventDefault();
+    const now = sections.findIndex((s) => s.getBoundingClientRect().top > -innerHeight / 2);
+    const i = Math.max(0, Math.min(sections.length - 1, (now < 0 ? 0 : now) + (next ? 1 : -1)));
+    sections[i].scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  });
+})();
+</script>
+</body>
+</html>

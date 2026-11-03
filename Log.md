@@ -222,3 +222,10 @@
 1. 작은 목표 오답을 성공 처리: 허용 오차가 고정 0.01이었음. 게다가 Excel 기본 정밀도(MaxChange 0.001)에선 `=C1^2/100000` 목표 0.0001에 값을 안 바꾸고 True를 돌려줌(재현함). → 허용 오차 = max(|목표|, |원래 결과|, 1e-9)×1e-5, GoalSeek 동안만 MaxChange를 그 1/10로 좁혔다 복원. 메시지는 유효숫자 10자리(`_n`), 결과 시트는 정수만 `#,##0`(한국어 Excel은 NumberFormat "General" 설정이 거부됨).
 2. 되돌리기가 사용자가 고친 결과 시트를 삭제: `Undo.after/_undo`가 원래 시트만 비교했음. → `_state()`가 이번 작업이 만든 새 시트(목표값 찾기·새 시트 결과·피벗)까지 비교해, 바뀌었으면 되돌리기 거부.
 - 확인: e2e_goal_seek 12/12(작은 목표·결과 시트 수정 추가), e2e_undo_filters 9/9, e2e_to_values 4/4.
+
+## 2026-11-03 사내 소개 발표자료 (스크롤 웹 페이지)
+- 위치: `presentation/index.html` (자료는 `presentation/assets/`: Pretendard, 셀리 아이콘, html-demo 엔진 `step-window.js/css`, 시연 영상 `demo.mp4` = `outputs/demo-video-take2/셀리_소개_완성본.mp4` 복사본). 미리보기: `.claude/launch.json`의 `presentation`(python http.server 8765). file://로 열어도 동작.
+- 청중: 사무직 직원(코딩 지식 낮음). 핵심 메시지 "손이 많이 가는 엑셀 작업, 이제 말로". 5분 = 슬라이드 약 4분 + 영상 1분.
+- 디자인: 사용자가 준 Canva 템플릿(EAG5xdI2aps, 연회색 바탕·파랑 #4f6ef7·안내선 틀·✓ 제목) 캡처를 따름. 7장: 표지(+모션) / 원인과 결과 / 비교 / 시연 영상 / 4장 카드 / 체크 목록 / 마무리. 스크롤에 따라 등장, 화살표·PageDown·스페이스로 한 장씩 넘김.
+- 시작 모션: 사용자 지정 Prompt Motion 스킬 `html-demo`(MengTo/Skills, `.claude/skills/html-demo`에 내용 검토 후 복사 설치, npx 실행 안 함). 3단계 20초(말로 요청 → 셀리가 작업 → 새 시트 완성). 문구는 `app/ui.py` 실제 문구, 표 값은 `거래내역_테스트용_500행.xlsx` 실제 데이터와 회사×연도 합계.
+- 남은 것: 표지·마무리의 `[이름]`·`[부서]`·`[연락처]` 자리 채우기(사용자 정보 대기). 실제 발표 화면(프로젝터) 해상도에서 확인 안 함.
