@@ -61,7 +61,7 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
 .cover-desc { margin: 0; color: var(--mute); font-size: 14pt; }
 .pills { display: flex; gap: 22px; justify-content: center; align-items: center; margin-top: 16px; font-size: 14pt; flex-wrap: wrap; }
 .pill { display: inline-block; background: var(--blue); color: #fff; font-weight: 700; font-size: 14pt; padding: 6px 18px; border-radius: 999px; margin-right: 10px; }
-.demo { width: min(900px, 100%, calc((100vh - 400px) * 1.5)); min-width: min(320px, 100%); margin: 26px auto 0; }
+.demo { width: min(900px, 100%, calc((100vh - 425px) * 1.5)); min-width: min(320px, 100%); margin: 26px auto 0; }
 .scroll-hint { position: absolute; bottom: 34px; left: 56px; font-size: 11px; letter-spacing: .2em; color: var(--mute); }
 
 /* html-demo 창을 밝은 테마로 */
@@ -137,7 +137,7 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
 .arrow { width: 70px; height: 70px; }
 .result { background: #fff; border: 1px solid var(--line); text-align: center; }
 .result h3 { margin: 0; background: var(--blue); color: #fff; padding: 20px; font-size: 24px; }
-.result p { margin: 0; padding: 36px 28px; font-size: 18px; line-height: 1.7; color: #3a3a3e; }
+.result p { margin: 0; padding: 36px 28px; font-size: 14pt; line-height: 1.7; color: #3a3a3e; }
 .result p strong { display: block; font-size: 26px; color: var(--ink); margin-bottom: 10px; }
 
 /* 3. 비교 */
@@ -145,11 +145,11 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
 .col h3 { margin: 0 0 4px; padding: 18px; text-align: center; font-size: 22px; background: #fff; border: 1px solid var(--line); }
 .col.hot h3 { color: var(--blue); border: 2px solid var(--blue); }
 .col ul, .mid ul { list-style: none; margin: 0; padding: 0; }
-.col li { padding: 0 8px; height: 64px; display: flex; align-items: center; justify-content: center; text-align: center; border-bottom: 1px solid #c9c9cf; font-size: 17px; color: #4a4a50; }
+.col li { padding: 0 8px; height: 64px; display: flex; align-items: center; justify-content: center; text-align: center; border-bottom: 1px solid #c9c9cf; font-size: 14pt; color: #4a4a50; }
 .col.hot li { color: var(--ink); font-weight: 700; }
 .mid { background: var(--blue); color: #fff; text-align: center; padding: 0 0 8px; margin-top: -14px; }
 .mid h3 { margin: 0; padding: 24px 0 14px; font-size: 22px; }
-.mid li { height: 64px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; border-top: 1px solid rgba(255,255,255,.3); }
+.mid li { height: 64px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14pt; border-top: 1px solid rgba(255,255,255,.3); }
 
 /* 4. 영상 */
 .video { width: min(100%, calc((100vh - 260px) * 16 / 9)); margin: 0 auto; }
@@ -160,15 +160,15 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
 .card { background: #fff; border: 1px solid var(--line); padding: 30px 22px 26px; text-align: center; display: flex; flex-direction: column; align-items: center; }
 .card svg { width: 54px; height: 54px; margin-bottom: 14px; }
 .card h3 { margin: 0 0 14px; font-size: 22px; }
-.say { background: var(--blue-soft); color: #2c3fae; border-radius: 12px; padding: 12px 14px; font-size: 15px; line-height: 1.5; margin-bottom: 12px; width: 100%; }
-.card p { margin: 0; color: var(--sub); font-size: 15px; line-height: 1.55; }
-.band { margin-top: 26px; background: var(--blue); color: #fff; font-weight: 700; font-size: 19px; padding: 20px 24px; text-align: center; display: flex; gap: 10px; align-items: center; justify-content: center; }
+.say { background: var(--blue-soft); color: #2c3fae; border-radius: 12px; padding: 12px 14px; font-size: 14pt; line-height: 1.5; margin-bottom: 12px; width: 100%; }
+.card p { margin: 0; color: var(--sub); font-size: 14pt; line-height: 1.55; }
+.band { margin-top: 26px; background: var(--blue); color: #fff; font-weight: 700; font-size: 14pt; padding: 20px 24px; text-align: center; display: flex; gap: 10px; align-items: center; justify-content: center; }
 .band svg { width: 22px; height: 22px; flex: none; }
 
 /* 6. 체크 목록 */
-.lead { text-align: center; color: var(--sub); font-size: 18px; line-height: 1.7; margin: 0 0 30px; }
+.lead { text-align: center; color: var(--sub); font-size: 14pt; line-height: 1.7; margin: 0 0 30px; }
 .checks { display: grid; gap: 16px; }
-.checks div { background: var(--gray-box); padding: 24px 30px; font-size: 22px; display: flex; gap: 16px; align-items: center; }
+.checks div { background: var(--gray-box); padding: 24px 30px; font-size: 14pt; display: flex; gap: 16px; align-items: center; }
 .checks svg { width: 22px; height: 22px; flex: none; }
 
 /* 7. 마무리 */
@@ -183,7 +183,7 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
   .arrow { transform: rotate(90deg); margin: 0 auto; }
   .cards { grid-template-columns: 1fr 1fr; }
   .mid { margin-top: 0; }
-  .checks div { font-size: 17px; padding: 18px; }
+  .checks div { padding: 18px; }
   .scroll-hint { left: 20px; }
 }
 @media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
