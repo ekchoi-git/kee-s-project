@@ -277,3 +277,4 @@
 - 글꼴 순서는 `"Pretendard Embedded"` → `Pretendard`(assets의 전체 TTF) → 맑은 고딕. 나중에 새 글자를 넣었는데 내장 폰트에 없으면 assets 폰트로 표시된다. **슬라이드 문구를 바꾸면 `python -I presentation/embed_fonts.py`를 다시 실행**해야 HTML만 있어도 새 글자가 Pretendard로 나온다.
 - 확인: assets를 못 읽는 data: 주소에서 열어도 내장 폰트 2개가 loaded 상태였다. 내장 폰트에 없는 기호 4개(⋮ ⌄ ⚿ ✔)는 Pretendard 원본에도 없는 글자라 전과 같이 시스템 글꼴로 나온다.
 - 영상(`assets/demo.mp4`), 아이콘, `step-window.css/js`는 여전히 별도 파일이다. 발표 PC로는 `presentation` 폴더째 옮겨야 한다.
+- 마지막 장(`#end`): 연락 안내 문구와 발표자·소속 표시를 지우고 '경청해 주셔서 감사합니다'만 크게(64px, 굵게, `.center .thanks`) 남겼다. 내장 폰트도 다시 만들었다(`embed_fonts.py`).
