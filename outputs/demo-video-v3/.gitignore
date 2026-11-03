@@ -1,0 +1,5 @@
+# Regenerable or private: edit.py rebuilds the videos; raw.mkv shows the whole desktop (taskbar, other apps)
+shots/
+__pycache__/
+*.mp4
+raw.mkv
