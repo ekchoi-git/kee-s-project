@@ -186,7 +186,7 @@ QPushButton:hover { background: #f3f4f6; }
 """
 
 
-EXAMPLES = ["엑셀파일의 시트들을 하나의 새로운 시트로 합쳐줘", "연도별 금액을 새로운 시트에 새로운 표로 만들어줘",
+EXAMPLES = ["엑셀파일의 시트들을 하나의 새로운 시트로 합쳐줘", "연도별 금액을 새로운 시트에 만들어줘",
             "D열의 정보를 읽고 5개 유형으로 구분해줘"]
 
 # 작업 중 멘트: 단계마다 몇 초씩 바꿔 보여준다 (Claude Code의 작업 중 표시처럼)
@@ -347,7 +347,7 @@ class Window(QWidget):
         ev = QVBoxLayout(self.empty)
         ev.setContentsMargins(0, 90, 0, 0)
         ev.setSpacing(10)
-        hello = QLabel("이런 요청부터 해보세요:")
+        hello = QLabel("이런 요청부터 해보세요 (예시)")
         hello.setObjectName("hello")
         ev.addWidget(hello, alignment=Qt.AlignHCenter)
         for ex in EXAMPLES:
