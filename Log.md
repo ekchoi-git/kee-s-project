@@ -271,3 +271,9 @@
 - 수정(같은 날): 셀리 '작업 완료' 응답 말풍선 3개에 반짝임 효과를 넣었다. 파란 테두리가 은은하게 빛나고(0.3초에 걸쳐 나타남), 연한 파란 빛줄기가 왼쪽에서 오른쪽으로 0.8초 동안 한 번 지나가고, 모서리에 작은 별 3개가 차례로 반짝인다. 말풍선 위치와 시간은 `edit.py`의 `DONE`에 있다. 주의: PIL에서 RGBA 이미지를 그대로 블러하면 가장자리가 회색으로 번진다. 투명도(L 마스크)만 블러하고 색은 단색으로 채워야 한다.
 - 배경음: Suno 곡은 CDN이 자동 다운로드를 막아서(403) 쓰지 못했다. 대신 사용자가 직접 받은 `MP_시작하는 마음.mp3`(2분 55초, 프로젝트 루트, git에는 안 올림)를 **35초 지점부터** 입혔다(사용자 지정). 0.5초 페이드인, 끝 3초 페이드아웃, -5dB → 약 -20.5 LUFS(원곡 -15.2). `edit.py`가 무음 영상 `셀리_시연영상_무음.mp4`를 먼저 만들고 `add_music()`으로 `셀리_시연영상.mp4`를 만든다. 시작 지점과 음량은 `MUSIC_START`, `MUSIC_GAIN_DB`.
 - git 정리(같은 날): 시연영상 작업물을 커밋했다. 포함한 것: `outputs/demo-video-v3/`의 `drive.py`, `edit.py`, `events.jsonl`, `record.json`, 루트의 `셀리_시연영상.mp4`, `VIDEO_SCENARIO.md`. 제외한 것: `raw.mkv`(원본 녹화, 작업 표시줄과 다른 앱 창이 찍혀 있음), `MP_시작하는 마음.mp3`(외부에서 받은 음악), 확인용 `shots/`, 무음·중복 mp4. 이 파일들은 로컬에만 있다. 다시 만들 때는 `python -I outputs/demo-video-v3/edit.py`를 실행한다(raw.mkv와 mp3 필요).
+
+## 2026-11-03 발표자료 폰트 HTML 내장 (Claude)
+- 다른 PC에서 발표할 때를 대비해 Pretendard(Regular 400, Bold 700)를 `presentation/index.html` 안에 base64 woff로 넣었다. 발표자료(HTML, `assets/step-window.js`, `step-window.css`)에 쓰인 글자 469자만 추렸고, HTML은 47KB에서 0.20MB가 됐다.
+- 글꼴 순서는 `"Pretendard Embedded"` → `Pretendard`(assets의 전체 TTF) → 맑은 고딕. 나중에 새 글자를 넣었는데 내장 폰트에 없으면 assets 폰트로 표시된다. **슬라이드 문구를 바꾸면 `python -I presentation/embed_fonts.py`를 다시 실행**해야 HTML만 있어도 새 글자가 Pretendard로 나온다.
+- 확인: assets를 못 읽는 data: 주소에서 열어도 내장 폰트 2개가 loaded 상태였다. 내장 폰트에 없는 기호 4개(⋮ ⌄ ⚿ ✔)는 Pretendard 원본에도 없는 글자라 전과 같이 시스템 글꼴로 나온다.
+- 영상(`assets/demo.mp4`), 아이콘, `step-window.css/js`는 여전히 별도 파일이다. 발표 PC로는 `presentation` 폴더째 옮겨야 한다.
