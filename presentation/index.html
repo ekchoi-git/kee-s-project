@@ -140,16 +140,82 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
 .result p { margin: 0; padding: 36px 28px; font-size: 14pt; line-height: 1.7; color: #3a3a3e; }
 .result p strong { display: block; font-size: 26px; color: var(--ink); margin-bottom: 10px; }
 
-/* 3. 비교 */
-.compare { display: grid; grid-template-columns: 1fr 230px 1fr; gap: 26px; width: 100%; align-items: start; }
-.col h3 { margin: 0 0 4px; padding: 18px; text-align: center; font-size: 22px; background: #fff; border: 1px solid var(--line); }
-.col.hot h3 { color: var(--blue); border: 2px solid var(--blue); }
-.col ul, .mid ul { list-style: none; margin: 0; padding: 0; }
-.col li { padding: 0 8px; height: 64px; display: flex; align-items: center; justify-content: center; text-align: center; border-bottom: 1px solid #c9c9cf; font-size: 14pt; color: #4a4a50; }
-.col.hot li { color: var(--ink); font-weight: 700; }
-.mid { background: var(--blue); color: #fff; text-align: center; padding: 0 0 8px; margin-top: -14px; }
-.mid h3 { margin: 0; padding: 24px 0 14px; font-size: 22px; }
-.mid li { height: 64px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14pt; border-top: 1px solid rgba(255,255,255,.3); }
+.result .quote { display: block; font-size: 22px; font-weight: 700; color: var(--blue); line-height: 1.5; margin-bottom: 12px; }
+
+/* 2. 질문 */
+#ask { align-items: center; justify-content: center; text-align: center; }
+.eyebrow { margin: 0 0 18px; color: var(--blue); font-weight: 700; font-size: 14pt; letter-spacing: .04em; }
+
+/* 3·4. 나의 경험: 화면은 고정된 채 스크롤(또는 넘기기 키) 한 번마다 다음 Case로 */
+section.story { display: block; min-height: 0; height: calc(var(--steps) * 100vh); padding: 0; scroll-snap-align: none; }
+.stop { position: absolute; left: 0; top: calc(var(--k) * 100vh); width: 1px; height: 1px; scroll-snap-align: start; }
+.sticky { position: sticky; top: 0; height: 100vh; padding: 64px 56px 40px; display: flex; flex-direction: column; overflow: hidden; }
+
+.exp { display: grid; grid-template-columns: 1.45fr 1fr; gap: 34px; align-items: center; }
+.sheet { margin: 0; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px #dcdfea, 0 24px 60px -30px rgba(40,50,110,.35); }
+.sheet-bar { display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: #f3f3f3; border-bottom: 1px solid #e1e1e1; font-size: 13px; color: #444; }
+.xlogo { width: 18px; height: 18px; border-radius: 3px; background: #1d6f42; color: #fff; font: 700 11px/18px sans-serif; text-align: center; }
+.doing { margin-left: auto; color: #b4532a; font-weight: 700; }
+.sheet-more { padding: 8px 14px; text-align: center; font-size: 13px; color: var(--mute); }
+.xt, .gt { width: 100%; border-collapse: collapse; table-layout: fixed; font-family: "Segoe UI", var(--hd-font); font-size: 13px; }
+.xt th { height: 34px; padding: 0 8px; background: #1f4e79; color: #fff; font-weight: 700; }
+.xt th.add { background: #4f7bab; }
+.xt td { height: 30px; padding: 0 8px; border-bottom: 1px solid #fff; white-space: nowrap; overflow: hidden; }
+.xt tr:nth-child(odd) td { background: #d6eaf8; }
+.xt td.n { text-align: right; }
+.xt td.txt { position: relative; }
+.xt td.txt::before { content: ''; position: absolute; left: 0; top: 0; border: 4px solid transparent; border-top-color: #1d8f4e; border-left-color: #1d8f4e; }
+.w { display: grid; }
+.w > * { grid-area: 1 / 1; }
+.xt .e b { opacity: 0; color: #1f4e79; transition: opacity .15s; }
+.xt .e1 .old { color: #b4532a; transition: opacity .15s; }
+/* 한 칸씩 손으로 고치는 느낌: 칸마다 0.3초씩 늦게 */
+.s0 .e1 b, .s1 .e2 b, .s2 .e3 b { opacity: 1; transition-delay: calc(.4s + var(--i) * .3s); }
+.s0 .e1 .old { opacity: 0; transition-delay: calc(.4s + var(--i) * .3s); }
+.s0 .e1, .s1 .e2, .s2 .e3 { animation: edit .9s calc(.4s + var(--i) * .3s); }
+@keyframes edit {
+  from, 60% { box-shadow: inset 0 0 0 2px #1d6f42, inset 0 0 0 60px rgba(255, 214, 102, .6); }
+  to { box-shadow: inset 0 0 0 0 rgba(29, 111, 66, 0), inset 0 0 0 0 rgba(255, 214, 102, 0); }
+}
+.cases { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.case { display: flex; gap: 18px; align-items: flex-start; background: var(--gray-box); padding: 20px 22px; opacity: 0; transform: translateY(18px); transition: opacity .5s, transform .5s, background .3s, box-shadow .3s; }
+.case.show { opacity: 1; transform: none; }
+.case.now { background: #fff; box-shadow: 0 0 0 2px var(--blue); }
+.case .tag { padding: 7px 12px; }
+.case h3 { margin: 2px 0 6px; font-size: 20px; }
+.case p { margin: 0; font-size: 14pt; line-height: 1.55; color: #3a3a3e; }
+
+.exp2 { display: flex; flex-direction: column; gap: 16px; }
+.case4 { display: flex; gap: 18px; align-items: center; background: #fff; box-shadow: 0 0 0 2px var(--blue); padding: 18px 22px; }
+.case4 p { margin: 0; font-size: 14pt; line-height: 1.55; }
+.years { display: grid; grid-template-columns: repeat(10, 1fr); gap: 10px; transition: opacity .5s; }
+.yr { background: #fff; border: 1px solid var(--line); padding: 10px 4px 8px; text-align: center; opacity: 0; transform: translateY(12px); transition: opacity .4s, transform .4s; }
+.s0 .yr { opacity: 1; transform: none; transition-delay: calc(var(--i) * 90ms); }
+.yr svg { display: block; width: 26px; height: 26px; margin: 0 auto 4px; }
+.yr b { display: block; font-size: 15px; }
+.yr small { color: var(--mute); font-size: 12px; }
+.total { margin: 0; text-align: center; font-size: 14pt; color: var(--sub); opacity: 0; transition: opacity .5s 1s; }
+.s0 .total { opacity: 1; }
+.total b { color: var(--blue); font-size: 22px; }
+.flow { display: grid; grid-template-columns: 1fr 170px; gap: 26px; align-items: center; transition: opacity .5s; }
+.gt th, .gt td { height: 32px; padding: 0 8px; border: 1px solid #c9ccd4; background: #fff; }
+.gt th { background: #dbe7f6; font-weight: 700; }
+.gt td i { display: block; width: 0; height: 8px; margin-left: auto; border-radius: 4px; background: #c3c8d2; transition: width .2s; }
+.gt td.sum i { background: var(--blue); }
+.s1 .gt td i { width: var(--w); transition-delay: calc(var(--i) * 45ms); }
+.clock { text-align: center; }
+.clock svg { width: 140px; height: 140px; }
+.clock line { transform-box: view-box; transform-origin: 50% 50%; transition: transform 3.2s cubic-bezier(.45, 0, .2, 1); }
+.clock .hh { transform: rotate(270deg); }
+.s1 .clock .hh { transform: rotate(525deg); }
+.s1 .clock .mh { transform: rotate(3060deg); }
+.clock b { display: block; margin-top: 8px; font-size: 14pt; }
+.punch { margin: 4px 0 0; text-align: center; font-size: 28px; font-weight: 700; opacity: 0; transform: scale(.94); transition: opacity .6s, transform .6s; }
+.punch em { font-style: normal; color: var(--blue); font-size: 36px; }
+.s2 .punch { opacity: 1; transform: none; }
+.s2 .years, .s2 .total, .s2 .flow { opacity: .4; transition-delay: 0s; }
+
+.chip { margin-top: auto; padding-top: 14px; color: var(--blue); font-weight: 700; font-size: 14px; }
 
 /* 4. 영상 */
 .video { width: min(100%, calc((100vh - 260px) * 16 / 9)); margin: 0 auto; }
@@ -179,10 +245,11 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
 @media (max-width: 860px) {
   section { padding: 56px 20px 44px; }
   .head { margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
-  .cause, .compare { grid-template-columns: 1fr; }
+  .sticky { padding: 56px 20px 32px; }
+  .cause, .exp, .flow { grid-template-columns: 1fr; }
+  .years { grid-template-columns: repeat(5, 1fr); }
   .arrow { transform: rotate(90deg); margin: 0 auto; }
   .cards { grid-template-columns: 1fr 1fr; }
-  .mid { margin-top: 0; }
   .checks div { padding: 18px; }
   .scroll-hint { left: 20px; }
 }
@@ -190,6 +257,7 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .rv { opacity: 1; transform: none; transition: none; }
+  .story *, .story *::before { transition-delay: 0s !important; transition-duration: 0s !important; animation: none !important; }
 }
 </style>
 </head>
@@ -217,56 +285,96 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
   <div class="scroll-hint">SCROLL ↓</div>
 </section>
 
-<!-- 2. 문제 -->
-<section id="problem">
-  <div class="head"><h2><svg><use href="#check"/></svg>이런 경험 있으시죠?</h2><p>엑셀 정리, 매번 손이 많이 갑니다</p></div>
+<!-- 2. 질문 -->
+<section id="ask">
+  <p class="eyebrow rv">잠깐, 질문 하나</p>
+  <h2 class="cover-title">
+    <span class="l1 rv" style="--d:1">이번 주, 엑셀 정리에</span>
+    <span class="l2 rv" style="--d:2">몇 시간 쓰셨나요?</span>
+  </h2>
+</section>
+
+<!-- 3. 나의 경험 ①: Case 1~3 (스크롤 세 번) -->
+<section id="story1" class="story" data-steps="3" style="--steps:3">
+  <i class="stop" style="--k:0"></i><i class="stop" style="--k:1"></i><i class="stop" style="--k:2"></i>
+  <div class="sticky">
+    <div class="head"><h2><svg><use href="#check"/></svg>나의 경험 ①</h2><p>그룹사 거래금액 실적을 정리하며</p></div>
+    <div class="body"><div class="wrap exp">
+      <figure class="sheet rv">
+        <figcaption class="sheet-bar"><span class="xlogo">X</span>거래내역.xlsx<span class="doing" data-texts="✎ 회사명을 한 칸씩 고치는 중…|✎ 연도를 한 칸씩 입력하는 중…|✎ 전표를 읽고 유형을 적는 중…"></span></figcaption>
+        <table class="xt" id="xt" aria-label="거래 데이터 예시"></table>
+        <div class="sheet-more">⋮ 연도별 약 2만 행</div>
+      </figure>
+      <ol class="cases">
+        <li class="case" data-k="0"><span class="tag">Case 1</span><div><h3>회사명 하나로 합치기</h3><p>그룹사와 거래금액 실적을 맞추는데, 한 회사가 <b>지역별로 사업자등록</b>되어 있어 1개사로 <b>수작업 수정</b></p></div></li>
+        <li class="case" data-k="1"><span class="tag">Case 2</span><div><h3>연도 직접 입력</h3><p>연도별로 거래금액을 정리하는데, 데이터의 <b>날짜가 텍스트로 출력</b>되어 연도를 <b>수작업 입력</b></p></div></li>
+        <li class="case" data-k="2"><span class="tag">Case 3</span><div><h3>거래유형 구분</h3><p>회사별 거래유형이 정리되지 않아, <b>전표 내용을 하나하나 보면서</b> 거래유형을 <b>수작업 구분</b></p></div></li>
+      </ol>
+    </div></div>
+  </div>
+</section>
+
+<!-- 4. 나의 경험 ②: Case 4 (스크롤 세 번) -->
+<section id="story2" class="story" data-steps="3" style="--steps:3">
+  <i class="stop" style="--k:0"></i><i class="stop" style="--k:1"></i><i class="stop" style="--k:2"></i>
+  <div class="sticky">
+    <div class="head"><h2><svg><use href="#check"/></svg>나의 경험 ②</h2><p>그룹사별 최근 10년 거래금액 정리</p></div>
+    <div class="body"><div class="wrap exp2">
+      <div class="case4 rv"><span class="tag">Case 4</span><p>그룹사별 최근 10년간 거래금액을 정리하는데, <b>Case 1~3 작업을 끝내고</b> 연도별 피벗 테이블을 만들어 아래 표 양식에 정리</p></div>
+      <div class="years" id="years"></div>
+      <p class="total">연도별 약 2만 행 × 10년 = <b>약 20만 행</b> &nbsp;→&nbsp; 연도마다 피벗을 만들어 표 양식에 옮겨 적기</p>
+      <div class="flow">
+        <table class="gt" id="gt" aria-label="그룹사별 연도별 거래금액 정리 양식"></table>
+        <div class="clock" aria-hidden="true"><svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="46" fill="#fff" stroke="#c9cff5" stroke-width="3"/>
+          <path d="M50 8v7M50 85v7M8 50h7M85 50h7" stroke="#9a9aa2" stroke-width="3" stroke-linecap="round"/>
+          <line class="mh" x1="50" y1="50" x2="50" y2="16" stroke="#4f6ef7" stroke-width="3.5" stroke-linecap="round"/>
+          <line class="hh" x1="50" y1="50" x2="50" y2="28" stroke="#2b2b2e" stroke-width="5" stroke-linecap="round"/>
+          <circle cx="50" cy="50" r="4" fill="#2b2b2e"/></svg><b>거의 하루</b></div>
+      </div>
+      <p class="punch"><em>거의 하루 동안</em>, 엑셀 작업과 숫자 검증에 시간을 보냈습니다!</p>
+    </div></div>
+  </div>
+</section>
+
+<!-- 5. 셀리라면, 한 문장 -->
+<section id="oneline">
+  <div class="head"><h2><svg><use href="#check"/></svg>셀리라면, 한 문장</h2><p>Case 4 같은 연도별 정리를 말로</p></div>
   <div class="body"><div class="wrap cause">
     <div class="cause-list">
-      <div class="cause-item rv" style="--d:0"><span class="tag">함수 찾기</span><p>합계·피벗을 만들 때마다 <b>함수와 설정법을 검색</b>합니다.</p></div>
-      <div class="cause-item rv" style="--d:1"><span class="tag">반복 작업</span><p>필터, 정렬, 복사·붙여넣기를 <b>몇 번씩 되풀이</b>합니다.</p></div>
-      <div class="cause-item rv" style="--d:2"><span class="tag">파일 왕복</span><p>다른 AI는 파일을 <b>올리고, 결과를 다시 내려받아야</b> 합니다.</p></div>
+      <div class="cause-item rv" style="--d:0"><span class="tag">연도 입력</span><p>날짜에서 연도를 뽑아 <b>한 칸씩 입력</b></p></div>
+      <div class="cause-item rv" style="--d:1"><span class="tag">피벗 10번</span><p>연도마다 <b>피벗 테이블을 따로</b> 만들기</p></div>
+      <div class="cause-item rv" style="--d:2"><span class="tag">옮겨 적기</span><p>피벗 결과를 표 양식에 <b>하나씩 옮기기</b></p></div>
+      <div class="cause-item rv" style="--d:3"><span class="tag">숫자 검증</span><p>합계가 맞는지 <b>다시 확인</b></p></div>
     </div>
-    <svg class="arrow rv" style="--d:3" viewBox="0 0 70 70" aria-hidden="true"><path d="M6 25h30V10l28 25-28 25V45H6z" fill="#2b2b2e"/></svg>
-    <div class="result rv" style="--d:4">
-      <h3>결과</h3>
-      <p><strong>정리에만 시간이 다 갑니다</strong>데이터가 1만 행을 넘으면<br>처리하고 검산하는 데도<br>시간이 오래 걸립니다.</p>
+    <svg class="arrow rv" style="--d:4" viewBox="0 0 70 70" aria-hidden="true"><path d="M6 25h30V10l28 25-28 25V45H6z" fill="#2b2b2e"/></svg>
+    <div class="result rv" style="--d:5">
+      <h3>셀리에게는</h3>
+      <p><span class="quote">“연도별, 회사별 지불금액을<br>새로운 시트에 넣어줘.”</span>말 한 줄이면 새 시트에<br>회사 × 연도 표가 만들어집니다.</p>
     </div>
   </div></div>
 </section>
 
-<!-- 3. 셀리 소개 -->
-<section id="intro">
-  <div class="head"><h2><svg><use href="#check"/></svg>셀리를 소개합니다</h2><p>열려 있는 엑셀에 말로 시키는 AI 도우미</p></div>
-  <div class="body"><div class="wrap compare">
-    <div class="col rv" style="--d:0"><h3>지금까지</h3><ul>
-      <li>메뉴와 함수를 직접 찾음</li><li>함수·피벗 사용법을 알아야 함</li><li>파일을 올리고 내려받기 반복</li><li>결과를 하나하나 직접 검산</li><li>실수하면 손으로 되돌리기</li></ul></div>
-    <div class="mid rv" style="--d:1"><h3>비교</h3><ul>
-      <li>시작 방법</li><li>필요한 지식</li><li>작업 위치</li><li>결과 확인</li><li>실수했을 때</li></ul></div>
-    <div class="col hot rv" style="--d:2"><h3>셀리와 함께</h3><ul>
-      <li>평소 말로 요청</li><li>몰라도 괜찮음</li><li>지금 열린 엑셀에서 바로</li><li>엑셀 계산식으로 남아 확인 가능</li><li>버튼 한 번으로 되돌리기</li></ul></div>
-  </div></div>
-</section>
-
-<!-- 4. 시연 영상 -->
+<!-- 6. 시연 영상 -->
 <section id="video">
-  <div class="head"><h2><svg><use href="#check"/></svg>시연 영상</h2><p>회사별·연도별 지불금액을 새 시트에 정리하기</p></div>
+  <div class="head"><h2><svg><use href="#check"/></svg>직접 보시죠</h2><p>회사별·연도별 지불금액을 새 시트에 정리하기</p></div>
   <div class="body"><div class="video rv"><video src="assets/demo.mp4" controls preload="metadata" playsinline></video></div></div>
 </section>
 
-<!-- 5. 기능 -->
+<!-- 7. 기능 -->
 <section id="features">
-  <div class="head"><h2><svg><use href="#check"/></svg>셀리가 할 수 있는 일</h2><p>이렇게 말하면, 이렇게 됩니다</p></div>
+  <div class="head"><h2><svg><use href="#check"/></svg>이렇게 말해 보세요</h2><p>내일 바로 써 볼 수 있는 말</p></div>
   <div class="body"><div class="wrap">
     <div class="cards">
       <div class="card rv" style="--d:0">
         <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8v38h38"/><path d="M8 18h38M8 28h38M8 38h38" stroke="#c9cff5"/><path d="M14 38l9-12 8 6 11-16"/><circle cx="23" cy="26" r="2.2" fill="#4f6ef7"/><circle cx="31" cy="32" r="2.2" fill="#4f6ef7"/></svg>
-        <h3>합계·요약</h3><div class="say">“회사별 연도별 금액 합계를 수식으로 만들어줘”</div><p>합계표나 피벗을 엑셀 계산식으로 만듭니다.</p></div>
+        <h3>합계·요약</h3><div class="say">“회사별 연도별 금액 합계를 수식으로 만들어줘”</div><p>합계표나 피벗을 엑셀 계산식으로 만듭니다.</p><span class="chip">→ Case 4 같은 일</span></div>
       <div class="card rv" style="--d:1">
         <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10h38L32 27v14l-10 5V27z"/></svg>
         <h3>골라보기·정렬</h3><div class="say">“금액 1억 넘는 것만 보이게 하고 큰 순서로 정렬해줘”</div><p>조건에 맞는 행만 남기고 순서를 맞춥니다.</p></div>
       <div class="card rv" style="--d:2">
         <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="8" width="16" height="16" rx="3"/><rect x="31" y="8" width="16" height="16" rx="3"/><rect x="7" y="31" width="16" height="16" rx="3"/><rect x="31" y="31" width="16" height="16" rx="3" fill="#e9edfe"/></svg>
-        <h3>자동 분류</h3><div class="say">“거래 설명을 보고 유형을 분류해줘”</div><p>글 내용을 읽고 알맞은 유형을 새 열에 적습니다.</p></div>
+        <h3>자동 분류</h3><div class="say">“거래 설명을 보고 유형을 분류해줘”</div><p>글 내용을 읽고 알맞은 유형을 새 열에 적습니다.</p><span class="chip">→ Case 3 같은 일</span></div>
       <div class="card rv" style="--d:3">
         <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="27" cy="27" r="19"/><circle cx="27" cy="27" r="11"/><circle cx="27" cy="27" r="3" fill="#4f6ef7"/></svg>
         <h3>목표값 찾기</h3><div class="say">“영업이익이 0이 되려면 매출이 얼마여야 해?”</div><p>원하는 결과가 나오는 입력값을 찾아 줍니다.</p></div>
@@ -275,21 +383,20 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
   </div></div>
 </section>
 
-<!-- 6. 안심 -->
+<!-- 8. 안심 -->
 <section id="safe">
-  <div class="head"><h2><svg><use href="#check"/></svg>안심하고 쓰세요</h2><p>회사 데이터를 다루니까, 안전장치부터</p></div>
+  <div class="head"><h2><svg><use href="#check"/></svg>걱정되는 점, 미리 답합니다</h2><p>회사 데이터를 다루니까, 안전장치부터</p></div>
   <div class="body"><div class="wrap">
     <p class="lead rv">셀리는 결과를 바로 엑셀에 적용합니다.<br>그래서 잘못됐을 때 되돌리는 방법을 함께 갖추고 있습니다.</p>
     <div class="checks">
       <div class="rv" style="--d:1"><svg><use href="#check"/></svg><span><b>되돌리기 버튼 한 번</b>이면 직전 작업 전으로 돌아갑니다.</span></div>
       <div class="rv" style="--d:2"><svg><use href="#check"/></svg><span>원본 표를 바꾸는 작업은 <b>먼저 물어보고</b> 진행합니다.</span></div>
       <div class="rv" style="--d:3"><svg><use href="#check"/></svg><span>결과는 <b>엑셀 계산식</b>으로 남아 직접 확인할 수 있습니다.</span></div>
-      <div class="rv" style="--d:4"><svg><use href="#check"/></svg><span>작업 중 오류가 나면 <b>자동으로 원래 상태</b>로 되돌립니다.</span></div>
     </div>
   </div></div>
 </section>
 
-<!-- 7. 마무리 -->
+<!-- 9. 마무리 -->
 <section id="end">
   <h2 class="cover-title">
     <span class="l1 rv" style="--d:0">손 많이 가는 엑셀 작업,</span>
@@ -448,28 +555,75 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
   });
   window.__hd = ctl;
 
-  // 스크롤 진행 막대와 장별 등장
+  // 나의 경험 ①: 데모 파일 12행. 내용은 중요하지 않고 '이런 데이터를 손으로 고쳤다'만 보이면 된다.
+  // Case 1은 지역별로 나뉜 회사명, Case 2는 텍스트 날짜에서 연도, Case 3은 계정명에서 거래유형.
+  const REGION = { 2: 'H테크 포항', 3: 'I소재 광양', 5: 'B서비스 서울', 7: 'I소재 포항', 10: 'I소재 광양', 11: 'A상사 부산' };
+  const KIND = { 구매비: '구매', 임차료: '임차', 교육훈련비: '교육', 운반비: '운송', 용역비: '용역', 건설직접비: '공사' };
+  let e1 = 0;
+  document.getElementById('xt').innerHTML =
+    '<colgroup><col style="width:15%"><col style="width:9%"><col style="width:15%"><col style="width:31%"><col style="width:17%"><col style="width:13%"></colgroup>'
+    + '<thead><tr><th>INVOICE_DATE</th><th class="add">연도</th><th>지불금액</th><th>내용</th><th>회사명</th><th class="add">거래유형</th></tr></thead><tbody>'
+    + DATA.slice(0, 12).map((d, r) => `<tr><td class="txt">${d[1]}</td><td class="e e2" style="--i:${r}"><b>${d[1].slice(0, 4)}</b></td>`
+      + `<td class="n">${won(d[3])}</td><td>${d[4]}</td>`
+      + (REGION[r] ? `<td class="e e1" style="--i:${e1++}"><span class="w"><span class="old">${REGION[r]}</span><b>${d[5]}</b></span></td>` : `<td>${d[5]}</td>`)
+      + `<td class="e e3" style="--i:${r}"><b>${KIND[d[2]]}</b></td></tr>`).join('')
+    + '</tbody>';
+
+  // 나의 경험 ②: 사용자가 준 정리 양식(그룹사 × 16~25년). 값 대신 막대가 한 칸씩 채워진다.
+  const GROUPS = ["P-Int'l", 'P-E&amp;C', 'P-퓨처엠', 'P-DX', 'SNNC', 'P-엠텍'];
+  const YEARS = Array.from({ length: 10 }, (_, i) => `${16 + i}년`);
+  document.getElementById('years').innerHTML = YEARS.map((y, i) => `<div class="yr" style="--i:${i}"><svg viewBox="0 0 24 24" fill="none" stroke="#1d6f42" stroke-width="1.6"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M4 15h16M10 3v18"/></svg><b>${y}</b><small>약 2만 행</small></div>`).join('');
+  let gi = 0;
+  document.getElementById('gt').innerHTML =
+    `<colgroup><col style="width:12%">${'<col>'.repeat(11)}</colgroup><thead><tr><th>그룹사명</th>${YEARS.map((y) => `<th>${y}</th>`).join('')}<th>합계</th></tr></thead><tbody>`
+    + GROUPS.map((g) => `<tr><td>${g}</td>${Array.from({ length: 11 }, (_, c) => {
+      const i = gi++;
+      return `<td${c === 10 ? ' class="sum"' : ''}><i style="--i:${i};--w:${c === 10 ? 85 : 45 + (i * 37) % 40}%"></i></td>`;
+    }).join('')}</tr>`).join('')
+    + '</tbody>';
+
+  // 스크롤 진행 막대, 장별 등장, 나의 경험 장의 단계
   const bar = document.querySelector('.progress');
+  const stories = [...document.querySelectorAll('.story')];
+  function stepStories() {
+    stories.forEach((s) => {
+      const n = Number(s.dataset.steps);
+      const p = (scrollY - s.offsetTop) / innerHeight;
+      const k = p < -0.5 ? -1 : Math.min(n - 1, Math.max(0, Math.round(p)));
+      if (s.dataset.step === String(k)) return;
+      s.dataset.step = k;
+      for (let j = 0; j < n; j++) s.classList.toggle('s' + j, j <= k);
+      s.querySelectorAll('[data-k]').forEach((el) => {
+        el.classList.toggle('show', Number(el.dataset.k) <= k);
+        el.classList.toggle('now', Number(el.dataset.k) === k);
+      });
+      const doing = s.querySelector('.doing');
+      if (doing) doing.textContent = doing.dataset.texts.split('|')[k] || '';
+    });
+  }
   const onScroll = () => {
     const max = document.documentElement.scrollHeight - innerHeight;
     bar.style.setProperty('--p', max > 0 ? scrollY / max : 0);
+    stepStories();
   };
   addEventListener('scroll', onScroll, { passive: true });
+  addEventListener('resize', onScroll);
   onScroll();
   const sections = [...document.querySelectorAll('section')];
-  const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add('in')), { threshold: 0.25 });
+  const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add('in')), { rootMargin: '0px 0px -25% 0px' });
   sections.forEach((s) => io.observe(s));
 
-  // 발표용 넘기기: 화살표·PageUp/Down·스페이스로 한 장씩
+  // 발표용 넘기기: 화살표·PageUp/Down·스페이스로 한 장씩. 나의 경험 장은 Case마다 한 번씩 멈춘다.
+  const stops = () => sections.flatMap((s) => Array.from({ length: Number(s.dataset.steps || 1) }, (_, k) => s.offsetTop + k * innerHeight));
   addEventListener('keydown', (e) => {
-    if (e.target.closest('video, button, input')) return;
+    if (e.target.closest?.('video, button, input')) return;
     const next = ['ArrowDown', 'ArrowRight', 'PageDown', ' '].includes(e.key);
     const prev = ['ArrowUp', 'ArrowLeft', 'PageUp'].includes(e.key);
     if (!next && !prev) return;
     e.preventDefault();
-    const now = sections.findIndex((s) => s.getBoundingClientRect().top > -innerHeight / 2);
-    const i = Math.max(0, Math.min(sections.length - 1, (now < 0 ? 0 : now) + (next ? 1 : -1)));
-    sections[i].scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    const all = stops();
+    const top = next ? all.find((y) => y > scrollY + 4) : all.reverse().find((y) => y < scrollY - 4);
+    if (top !== undefined) scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   });
 })();
 </script>
