@@ -10,73 +10,90 @@
 @font-face { font-family: Pretendard; src: url(assets/Pretendard-Regular.ttf) format("truetype"); font-weight: 400; font-display: block; }
 @font-face { font-family: Pretendard; src: url(assets/Pretendard-Bold.ttf) format("truetype"); font-weight: 700; font-display: block; }
 
+/* 슬라이드는 PPT 16:9와 같은 1920 × 1080 판에 그리고 화면에 맞춰 통째로 줄인다.
+   이 판에서 1pt = 2px (13.33인치 = 960pt = 1920px)이라 14pt 본문 = 28px. */
 :root {
-  --bg: #f4f4f5;
+  --s: 1;
+  --bg: #f4f4f4;
   --ink: #2b2b2e;
-  --sub: #6b6b72;
+  --sub: #5f5f66;
   --mute: #9a9aa2;
   --blue: #4f6ef7;
   --blue-soft: #e9edfe;
   --line: #c9cff5;
-  --card: #ffffff;
-  --gray-box: #e8e8ea;
+  --gray-box: #e6e6e8;
   --hd-font: Pretendard, "Malgun Gothic", sans-serif;
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-snap-type: y proximity; }
+html { scroll-snap-type: y proximity; scrollbar-width: none; background: var(--bg); }
+html::-webkit-scrollbar { display: none; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--hd-font); -webkit-font-smoothing: antialiased; word-break: keep-all; }
 b, strong { font-weight: 700; }
+.progress { position: fixed; left: 0; top: 0; height: 4px; width: 100%; background: var(--blue); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); z-index: 9; }
 
-/* 템플릿의 안내선 틀과 오른쪽 위 점 세 개 */
-.frame { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
-.frame i { position: absolute; background: var(--line); opacity: .75; }
-.frame .t { left: 0; right: 0; top: 22px; height: 1px; }
-.frame .b { left: 0; right: 0; bottom: 22px; height: 1px; }
-.frame .l { top: 0; bottom: 0; left: 14px; width: 1px; }
-.frame .r { top: 0; bottom: 0; right: 14px; width: 1px; }
-.dots { position: fixed; top: 34px; right: 34px; z-index: 6; display: flex; gap: 4px; pointer-events: none; }
-.dots i { width: 5px; height: 5px; border-radius: 50%; background: #b9c2f7; }
-.progress { position: fixed; left: 0; top: 0; height: 3px; width: 100%; background: var(--blue); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); z-index: 7; }
+.slide { position: relative; height: 100vh; overflow: hidden; scroll-snap-align: start; }
+.slide.story { height: calc(var(--steps) * 100vh); overflow: visible; scroll-snap-align: none; }
+.stop { position: absolute; left: 0; top: calc(var(--k) * 100vh); width: 1px; height: 1px; scroll-snap-align: start; }
+.pin { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+.stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform: translate(-50%, -50%) scale(var(--s)); background: var(--bg); overflow: hidden; }
 
-section { min-height: 100vh; scroll-snap-align: start; position: relative; padding: 64px 56px 56px; display: flex; flex-direction: column; }
-.wrap { width: 100%; max-width: 1180px; margin: 0 auto; }
+/* 템플릿 틀: 가장자리 안내선과 오른쪽 위 점 세 개 */
+.chrome i { position: absolute; background: var(--line); }
+.chrome .t { left: 0; right: 0; top: 24px; height: 2px; }
+.chrome .b { left: 0; right: 0; bottom: 24px; height: 2px; }
+.chrome .l { top: 0; bottom: 0; left: 24px; width: 2px; }
+.chrome .r { top: 0; bottom: 0; right: 24px; width: 2px; }
+.chrome .d { position: absolute; top: 62px; right: 70px; display: flex; gap: 8px; }
+.chrome .d b { width: 10px; height: 10px; border-radius: 50%; background: #b9c2f7; }
 
-/* 본문 장 머리: ✓ 큰 제목 + 작은 회색 설명 + 가로선 */
-.head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding: 6px 0 22px; border-bottom: 1px solid var(--line); margin: 0 -56px; padding-left: 56px; padding-right: 56px; }
-.head h2 { margin: 0; font-size: clamp(30px, 4.2vw, 50px); letter-spacing: -.02em; display: flex; align-items: center; gap: 14px; }
-.head h2 svg { width: .62em; height: .62em; flex: none; }
-.head p { margin: 0; color: var(--mute); font-size: 15px; }
-.body { flex: 1; display: flex; align-items: center; padding-top: 36px; }
+/* 본문 장 머리: ✓ 제목 + 회색 설명, 아래 가로선 */
+.shead { position: absolute; left: 0; right: 0; top: 0; height: 200px; padding: 40px 150px 0 80px; display: flex; align-items: center; gap: 26px; border-bottom: 2px solid var(--line); }
+.shead svg { width: 48px; height: 48px; flex: none; }
+.shead h2 { margin: 0; font-size: 80px; letter-spacing: -.02em; line-height: 1; }
+.shead p { margin: 28px 0 0; font-size: 22px; color: var(--mute); }
+.bd { position: absolute; left: 150px; right: 150px; top: 200px; bottom: 26px; display: flex; align-items: center; justify-content: center; }
 
-/* 스크롤에 맞춰 나타나기 */
-.rv { opacity: 0; transform: translateY(26px); transition: opacity .7s cubic-bezier(.2,.7,.1,1), transform .7s cubic-bezier(.2,.7,.1,1); transition-delay: calc(var(--d, 0) * 110ms); }
-.in .rv, .rv.in { opacity: 1; transform: none; }
+/* 장에 들어오면 차례로 나타나기 */
+.rv { opacity: 0; transform: translateY(30px); transition: opacity .7s cubic-bezier(.2,.7,.1,1), transform .7s cubic-bezier(.2,.7,.1,1); transition-delay: calc(var(--d, 0) * 120ms); }
+.in .rv { opacity: 1; transform: none; }
 
-/* 1. 표지 */
-#cover { align-items: center; justify-content: center; text-align: center; padding-top: 48px; padding-bottom: 40px; }
-.cover-title { margin: 0; line-height: 1.12; letter-spacing: -.035em; }
-.cover-title .l1 { display: block; font-weight: 400; font-size: clamp(34px, 5.6vh, 66px); color: #3a3a3e; }
-.cover-title .l2 { display: block; font-weight: 700; font-size: clamp(42px, 7.6vh, 92px); color: var(--blue); }
-.cover-sub { margin: 14px 0 4px; font-weight: 700; font-size: 16pt; }
-.cover-desc { margin: 0; color: var(--mute); font-size: 14pt; }
-.pills { display: flex; gap: 22px; justify-content: center; align-items: center; margin-top: 16px; font-size: 14pt; flex-wrap: wrap; }
-.pill { display: inline-block; background: var(--blue); color: #fff; font-weight: 700; font-size: 14pt; padding: 6px 18px; border-radius: 999px; margin-right: 10px; }
-.demo { width: min(900px, 100%, calc((100vh - 425px) * 1.5)); min-width: min(320px, 100%); margin: 26px auto 0; }
-.scroll-hint { position: absolute; bottom: 34px; left: 56px; font-size: 11px; letter-spacing: .2em; color: var(--mute); }
+.tag { flex: none; display: inline-block; background: var(--blue); color: #fff; font-weight: 700; font-size: 24px; padding: 10px 20px; }
+.pill { display: inline-block; background: var(--blue); color: #fff; font-weight: 700; font-size: 28px; padding: 8px 26px; border-radius: 999px; margin-right: 14px; }
+.pills { display: flex; gap: 40px; align-items: center; font-size: 28px; }
+
+/* 1. 표지: 왼쪽 문구, 오른쪽 시작 모션 */
+.cover-l { position: absolute; left: 150px; top: 0; bottom: 0; width: 700px; display: flex; flex-direction: column; justify-content: center; }
+.ctitle { margin: 0; letter-spacing: -.035em; line-height: 1.18; }
+.ctitle .l1 { display: block; font-weight: 400; font-size: 72px; color: #3a3a3e; }
+.ctitle .l2 { display: block; font-weight: 700; font-size: 88px; color: var(--blue); margin-top: 6px; }
+.csub { margin: 44px 0 10px; font-weight: 700; font-size: 32px; }
+.cdesc { margin: 0 0 40px; font-size: 28px; color: var(--sub); line-height: 1.5; }
+.cover-l .pills { flex-direction: column; align-items: flex-start; gap: 16px; }
+.cover-r { position: absolute; right: 110px; top: 0; bottom: 0; width: 980px; display: flex; align-items: center; }
+.demo { width: 100%; }
+
+/* 가운데 정렬 장(질문, 마무리): 템플릿 표지 모양 */
+.center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.center .ctitle .l1 { font-size: 120px; }
+.center .ctitle .l2 { font-size: 144px; }
+.eyebrow { margin: 0 0 30px; color: var(--blue); font-weight: 700; font-size: 32px; letter-spacing: .04em; }
+.center .csub { margin: 46px 0 10px; }
+.center .cdesc { margin: 0 0 40px; }
 
 /* html-demo 창을 밝은 테마로 */
-.hd-win { background: #fff; border-radius: 12px; box-shadow: 0 0 0 1px #dcdfea, 0 30px 70px -30px rgba(40,50,110,.35); }
-.hd-bar { background: #fff; color: #5f5e5a; border-bottom: 1px solid #ececf0; }
+.hd-win { background: #fff; border-radius: 16px; box-shadow: 0 0 0 2px #dcdfea, 0 50px 100px -40px rgba(40,50,110,.4); }
+.hd-bar { height: 46px; background: #fff; color: #5f5e5a; border-bottom: 1px solid #ececf0; font-size: 16px; }
 .hd-lights, .hd-bar > svg { display: none; }
+.hd-tab { height: 32px; max-width: 260px; }
 .hd-tab.on { background: #f1f2f6; color: #1f1f1d; }
 .hd-view, .hd-stage { background: #fff; }
 .hd-steps { background: #fff; border-top: 1px solid #ececf0; }
-.hd-steps button { color: #8a8e96; font-size: 13px; }
+.hd-steps button { color: #8a8e96; font-size: 19px; padding: 12px 14px 15px; }
 .hd-steps button:hover, .hd-steps button.on { color: #1f1f1d; }
 .hd-steps button:hover { background: #f4f5f8; }
-.hd-n { color: #b0b3ba; }
+.hd-n { color: #b0b3ba; font-size: 15px; }
 .hd-steps button.on .hd-n { color: var(--blue); }
-.hd-steps i { background: linear-gradient(90deg, var(--blue) calc(var(--p) * 100%), transparent calc(var(--p) * 100%)), #eceef3; }
+.hd-steps i { height: 2px; background: linear-gradient(90deg, var(--blue) calc(var(--p) * 100%), transparent calc(var(--p) * 100%)), #eceef3; }
 
 /* 데모 안: 왼쪽 Excel, 오른쪽 셀리 (1200 × 750, 접두어 cly-) */
 .cly { font-family: var(--hd-font); color: #1f1f1d; }
@@ -99,7 +116,6 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
 .cly-tabs span { padding: 5px 12px; }
 .cly-tabs .on { background: #fff; color: #1d6f42; font-weight: 700; box-shadow: inset 0 -2px #1d6f42; }
 .cly-status { position: absolute; left: 0; bottom: 0; width: 780px; height: 22px; background: #f3f3f3; font-size: 12px; color: #555; padding: 3px 12px; }
-
 .cly-app { position: absolute; left: 780px; top: 0; width: 420px; height: 750px; background: #fafaf8; font-size: 14.5px; }
 .cly-head { height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #e8e6df; background: #fff; }
 .cly-head b { font-size: 19px; }
@@ -127,44 +143,22 @@ section { min-height: 100vh; scroll-snap-align: start; position: relative; paddi
 .cly-send.dis { background: #b4b2a9; }
 .cly-undo { position: absolute; left: 12px; bottom: 16px; width: 22px; height: 22px; }
 
-/* 2. 원인과 결과 */
-.cause { display: grid; grid-template-columns: 1fr 70px 0.8fr; gap: 26px; align-items: center; width: 100%; }
-.cause-list { display: grid; gap: 18px; }
-.cause-item { display: flex; gap: 22px; align-items: center; background: var(--gray-box); padding: 24px 26px; }
-.tag { flex: none; background: var(--blue); color: #fff; font-weight: 700; padding: 9px 16px; font-size: 16px; }
-.cause-item p { margin: 0; font-size: 14pt; line-height: 1.55; color: #3a3a3e; }
-.cause-item p b { color: var(--ink); }
-.arrow { width: 70px; height: 70px; }
-.result { background: #fff; border: 1px solid var(--line); text-align: center; }
-.result h3 { margin: 0; background: var(--blue); color: #fff; padding: 20px; font-size: 24px; }
-.result p { margin: 0; padding: 36px 28px; font-size: 14pt; line-height: 1.7; color: #3a3a3e; }
-.result p strong { display: block; font-size: 26px; color: var(--ink); margin-bottom: 10px; }
-
-.result .quote { display: block; font-size: 22px; font-weight: 700; color: var(--blue); line-height: 1.5; margin-bottom: 12px; }
-
-/* 2. 질문 */
-#ask { align-items: center; justify-content: center; text-align: center; }
-.eyebrow { margin: 0 0 18px; color: var(--blue); font-weight: 700; font-size: 14pt; letter-spacing: .04em; }
-
-/* 3·4. 나의 경험: 화면은 고정된 채 스크롤(또는 넘기기 키) 한 번마다 다음 Case로 */
-section.story { display: block; min-height: 0; height: calc(var(--steps) * 100vh); padding: 0; scroll-snap-align: none; }
-.stop { position: absolute; left: 0; top: calc(var(--k) * 100vh); width: 1px; height: 1px; scroll-snap-align: start; }
-.sticky { position: sticky; top: 0; height: 100vh; padding: 64px 56px 40px; display: flex; flex-direction: column; overflow: hidden; }
-
-.exp { display: grid; grid-template-columns: 1.45fr 1fr; gap: 34px; align-items: center; }
-.sheet { margin: 0; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px #dcdfea, 0 24px 60px -30px rgba(40,50,110,.35); }
-.sheet-bar { display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: #f3f3f3; border-bottom: 1px solid #e1e1e1; font-size: 13px; color: #444; }
-.xlogo { width: 18px; height: 18px; border-radius: 3px; background: #1d6f42; color: #fff; font: 700 11px/18px sans-serif; text-align: center; }
+/* 3. 나의 경험 ①: 왼쪽 엑셀 표, 오른쪽 Case 1~3 */
+.exp { display: grid; grid-template-columns: 940px 630px; gap: 50px; align-items: center; }
+.sheet { margin: 0; background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 2px #dcdfea, 0 40px 80px -40px rgba(40,50,110,.35); }
+.sheet-bar { display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 20px; background: #f3f3f3; border-bottom: 1px solid #e1e1e1; font-size: 20px; color: #444; }
+.xlogo { width: 26px; height: 26px; border-radius: 4px; background: #1d6f42; color: #fff; font: 700 16px/26px sans-serif; text-align: center; }
 .doing { margin-left: auto; color: #b4532a; font-weight: 700; }
-.sheet-more { padding: 8px 14px; text-align: center; font-size: 13px; color: var(--mute); }
-.xt, .gt { width: 100%; border-collapse: collapse; table-layout: fixed; font-family: "Segoe UI", var(--hd-font); font-size: 13px; }
-.xt th { height: 34px; padding: 0 8px; background: #1f4e79; color: #fff; font-weight: 700; }
+.sheet-more { padding: 12px 20px; text-align: center; font-size: 20px; color: var(--mute); }
+.xt, .gt { width: 100%; border-collapse: collapse; table-layout: fixed; font-family: "Segoe UI", var(--hd-font); }
+.xt { font-size: 18px; }
+.xt th { height: 48px; padding: 0 10px; background: #1f4e79; color: #fff; font-weight: 700; }
 .xt th.add { background: #4f7bab; }
-.xt td { height: 30px; padding: 0 8px; border-bottom: 1px solid #fff; white-space: nowrap; overflow: hidden; }
+.xt td { height: 40px; padding: 0 10px; border-bottom: 1px solid #fff; white-space: nowrap; overflow: hidden; }
 .xt tr:nth-child(odd) td { background: #d6eaf8; }
 .xt td.n { text-align: right; }
 .xt td.txt { position: relative; }
-.xt td.txt::before { content: ''; position: absolute; left: 0; top: 0; border: 4px solid transparent; border-top-color: #1d8f4e; border-left-color: #1d8f4e; }
+.xt td.txt::before { content: ''; position: absolute; left: 0; top: 0; border: 6px solid transparent; border-top-color: #1d8f4e; border-left-color: #1d8f4e; }
 .w { display: grid; }
 .w > * { grid-area: 1 / 1; }
 .xt .e b { opacity: 0; color: #1f4e79; transition: opacity .15s; }
@@ -174,88 +168,82 @@ section.story { display: block; min-height: 0; height: calc(var(--steps) * 100vh
 .s0 .e1 .old { opacity: 0; transition-delay: calc(.4s + var(--i) * .3s); }
 .s0 .e1, .s1 .e2, .s2 .e3 { animation: edit .9s calc(.4s + var(--i) * .3s); }
 @keyframes edit {
-  from, 60% { box-shadow: inset 0 0 0 2px #1d6f42, inset 0 0 0 60px rgba(255, 214, 102, .6); }
+  from, 60% { box-shadow: inset 0 0 0 3px #1d6f42, inset 0 0 0 60px rgba(255, 214, 102, .6); }
   to { box-shadow: inset 0 0 0 0 rgba(29, 111, 66, 0), inset 0 0 0 0 rgba(255, 214, 102, 0); }
 }
-.cases { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
-.case { display: flex; gap: 18px; align-items: flex-start; background: var(--gray-box); padding: 20px 22px; opacity: 0; transform: translateY(18px); transition: opacity .5s, transform .5s, background .3s, box-shadow .3s; }
+.cases { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; }
+.case { background: var(--gray-box); padding: 26px 30px 28px; opacity: 0; transform: translateY(24px); transition: opacity .5s, transform .5s, background .3s, box-shadow .3s; }
 .case.show { opacity: 1; transform: none; }
-.case.now { background: #fff; box-shadow: 0 0 0 2px var(--blue); }
-.case .tag { padding: 7px 12px; }
-.case h3 { margin: 2px 0 6px; font-size: 20px; }
-.case p { margin: 0; font-size: 14pt; line-height: 1.55; color: #3a3a3e; }
+.case.now { background: #fff; box-shadow: 0 0 0 3px var(--blue); }
+.case h3 { margin: 0 0 12px; display: flex; align-items: center; gap: 18px; font-size: 32px; }
+.case p { margin: 0; font-size: 28px; line-height: 1.5; color: #3a3a3e; }
 
-.exp2 { display: flex; flex-direction: column; gap: 16px; }
-.case4 { display: flex; gap: 18px; align-items: center; background: #fff; box-shadow: 0 0 0 2px var(--blue); padding: 18px 22px; }
-.case4 p { margin: 0; font-size: 14pt; line-height: 1.55; }
-.years { display: grid; grid-template-columns: repeat(10, 1fr); gap: 10px; transition: opacity .5s; }
-.yr { background: #fff; border: 1px solid var(--line); padding: 10px 4px 8px; text-align: center; opacity: 0; transform: translateY(12px); transition: opacity .4s, transform .4s; }
+/* 4. 나의 경험 ②: Case 4, 10년치 시트, 정리 양식, 시계 */
+.exp2 { width: 100%; display: flex; flex-direction: column; gap: 22px; }
+.case4 { display: flex; gap: 24px; align-items: center; background: #fff; box-shadow: 0 0 0 3px var(--blue); padding: 24px 30px; transition: opacity .5s; }
+.case4 p { margin: 0; font-size: 28px; line-height: 1.5; }
+.years { display: grid; grid-template-columns: repeat(10, 1fr); gap: 14px; transition: opacity .5s; }
+.yr { background: #fff; border: 2px solid var(--line); padding: 14px 4px 12px; text-align: center; opacity: 0; transform: translateY(16px); transition: opacity .4s, transform .4s; }
 .s0 .yr { opacity: 1; transform: none; transition-delay: calc(var(--i) * 90ms); }
-.yr svg { display: block; width: 26px; height: 26px; margin: 0 auto 4px; }
-.yr b { display: block; font-size: 15px; }
-.yr small { color: var(--mute); font-size: 12px; }
-.total { margin: 0; text-align: center; font-size: 14pt; color: var(--sub); opacity: 0; transition: opacity .5s 1s; }
+.yr svg { display: block; width: 40px; height: 40px; margin: 0 auto 6px; }
+.yr b { display: block; font-size: 26px; }
+.yr small { color: var(--mute); font-size: 18px; }
+.total { margin: 0; text-align: center; font-size: 28px; color: var(--sub); opacity: 0; transition: opacity .5s 1s; }
 .s0 .total { opacity: 1; }
-.total b { color: var(--blue); font-size: 22px; }
-.flow { display: grid; grid-template-columns: 1fr 170px; gap: 26px; align-items: center; transition: opacity .5s; }
-.gt th, .gt td { height: 32px; padding: 0 8px; border: 1px solid #c9ccd4; background: #fff; }
+.total b { color: var(--blue); font-size: 40px; }
+.flow { display: grid; grid-template-columns: 1fr 240px; gap: 40px; align-items: center; transition: opacity .5s; }
+.gt { font-size: 20px; }
+.gt th, .gt td { height: 50px; padding: 0 12px; border: 1px solid #c9ccd4; background: #fff; }
 .gt th { background: #dbe7f6; font-weight: 700; }
-.gt td i { display: block; width: 0; height: 8px; margin-left: auto; border-radius: 4px; background: #c3c8d2; transition: width .2s; }
+.gt td i { display: block; width: 0; height: 12px; margin-left: auto; border-radius: 6px; background: #c3c8d2; transition: width .2s; }
 .gt td.sum i { background: var(--blue); }
 .s1 .gt td i { width: var(--w); transition-delay: calc(var(--i) * 45ms); }
 .clock { text-align: center; }
-.clock svg { width: 140px; height: 140px; }
+.clock svg { width: 220px; height: 220px; }
 .clock line { transform-box: view-box; transform-origin: 50% 50%; transition: transform 3.2s cubic-bezier(.45, 0, .2, 1); }
 .clock .hh { transform: rotate(270deg); }
 .s1 .clock .hh { transform: rotate(525deg); }
 .s1 .clock .mh { transform: rotate(3060deg); }
-.clock b { display: block; margin-top: 8px; font-size: 14pt; }
-.punch { margin: 4px 0 0; text-align: center; font-size: 28px; font-weight: 700; opacity: 0; transform: scale(.94); transition: opacity .6s, transform .6s; }
-.punch em { font-style: normal; color: var(--blue); font-size: 36px; }
-.s2 .punch { opacity: 1; transform: none; }
-.s2 .years, .s2 .total, .s2 .flow { opacity: .4; transition-delay: 0s; }
+.clock b { display: block; margin-top: 12px; font-size: 28px; }
+.punch { position: absolute; left: 50%; top: 56%; margin: 0; padding: 44px 80px; background: #fff; box-shadow: 0 0 0 4px var(--blue), 0 50px 100px -40px rgba(40,50,110,.45); text-align: center; font-size: 44px; font-weight: 700; white-space: nowrap; opacity: 0; transform: translate(-50%, -50%) scale(.92); transition: opacity .6s, transform .6s; }
+.punch em { display: block; margin-bottom: 10px; font-style: normal; font-size: 64px; color: var(--blue); }
+.s2 .punch { opacity: 1; transform: translate(-50%, -50%); }
+.s2 .case4, .s2 .years, .s2 .total, .s2 .flow { opacity: .25; transition-delay: 0s; }
 
-.chip { margin-top: auto; padding-top: 14px; color: var(--blue); font-weight: 700; font-size: 14px; }
+/* 5. 셀리라면, 한 문장 */
+.cause { display: grid; grid-template-columns: 900px 110px 1fr; gap: 30px; align-items: center; width: 100%; }
+.cause-list { display: grid; gap: 22px; }
+.cause-item { display: flex; gap: 28px; align-items: center; background: var(--gray-box); padding: 26px 30px; }
+.cause-item .tag { width: 150px; text-align: center; }
+.cause-item p { margin: 0; font-size: 28px; color: #3a3a3e; }
+.cause-item p b { color: var(--ink); }
+.arrow { width: 110px; height: 110px; }
+.result { background: #fff; border: 2px solid var(--line); text-align: center; }
+.result h3 { margin: 0; background: var(--blue); color: #fff; padding: 28px; font-size: 36px; }
+.result p { margin: 0; padding: 50px 36px; font-size: 28px; line-height: 1.6; color: #3a3a3e; }
+.result .quote { display: block; margin-bottom: 24px; font-size: 40px; font-weight: 700; line-height: 1.45; color: var(--blue); }
 
-/* 4. 영상 */
-.video { width: min(100%, calc((100vh - 260px) * 16 / 9)); margin: 0 auto; }
-.video video { display: block; width: 100%; background: #111; box-shadow: 0 0 0 1px var(--line), 0 30px 70px -34px rgba(40,50,110,.4); }
+/* 6. 영상 */
+.video { width: 1400px; }
+.video video { display: block; width: 100%; background: #111; box-shadow: 0 0 0 2px var(--line), 0 50px 100px -50px rgba(40,50,110,.45); }
 
-/* 5. 카드 */
-.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; width: 100%; }
-.card { background: #fff; border: 1px solid var(--line); padding: 30px 22px 26px; text-align: center; display: flex; flex-direction: column; align-items: center; }
-.card svg { width: 54px; height: 54px; margin-bottom: 14px; }
-.card h3 { margin: 0 0 14px; font-size: 22px; }
-.say { background: var(--blue-soft); color: #2c3fae; border-radius: 12px; padding: 12px 14px; font-size: 14pt; line-height: 1.5; margin-bottom: 12px; width: 100%; }
-.card p { margin: 0; color: var(--sub); font-size: 14pt; line-height: 1.55; }
-.band { margin-top: 26px; background: var(--blue); color: #fff; font-weight: 700; font-size: 14pt; padding: 20px 24px; text-align: center; display: flex; gap: 10px; align-items: center; justify-content: center; }
-.band svg { width: 22px; height: 22px; flex: none; }
+/* 7. 이렇게 말해 보세요 */
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px; }
+.card { background: #fff; border: 2px solid var(--line); padding: 40px 28px 36px; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.card svg { width: 84px; height: 84px; margin-bottom: 20px; }
+.card h3 { margin: 0 0 20px; font-size: 36px; }
+.say { width: 100%; margin-bottom: 20px; padding: 16px 14px; border-radius: 16px; background: var(--blue-soft); color: #2c3fae; font-size: 28px; line-height: 1.45; }
+.card p { margin: 0; color: var(--sub); font-size: 28px; line-height: 1.5; }
+.band { margin-top: 36px; padding: 28px; background: var(--blue); color: #fff; font-weight: 700; font-size: 28px; display: flex; gap: 14px; align-items: center; justify-content: center; }
+.band svg { width: 34px; height: 34px; flex: none; }
 
-/* 6. 체크 목록 */
-.lead { text-align: center; color: var(--sub); font-size: 14pt; line-height: 1.7; margin: 0 0 30px; }
-.checks { display: grid; gap: 16px; }
-.checks div { background: var(--gray-box); padding: 24px 30px; font-size: 14pt; display: flex; gap: 16px; align-items: center; }
-.checks svg { width: 22px; height: 22px; flex: none; }
+/* 8. 걱정되는 점 */
+.lead { margin: 0 0 44px; text-align: center; color: var(--sub); font-size: 28px; line-height: 1.6; }
+.checks { display: grid; gap: 24px; }
+.checks div { display: flex; gap: 22px; align-items: center; background: var(--gray-box); padding: 30px 44px; font-size: 28px; }
+.checks svg { width: 34px; height: 34px; flex: none; }
 
-/* 7. 마무리 */
-#end { align-items: center; justify-content: center; text-align: center; }
-#end .cover-title .l1 { font-size: clamp(38px, 7vh, 84px); }
-#end .cover-title .l2 { font-size: clamp(44px, 8.6vh, 104px); }
-
-@media (max-width: 860px) {
-  section { padding: 56px 20px 44px; }
-  .head { margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
-  .sticky { padding: 56px 20px 32px; }
-  .cause, .exp, .flow { grid-template-columns: 1fr; }
-  .years { grid-template-columns: repeat(5, 1fr); }
-  .arrow { transform: rotate(90deg); margin: 0 auto; }
-  .cards { grid-template-columns: 1fr 1fr; }
-  .checks div { padding: 18px; }
-  .scroll-hint { left: 20px; }
-}
-@media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
   .rv { opacity: 1; transform: none; transition: none; }
   .story *, .story *::before { transition-delay: 0s !important; transition-duration: 0s !important; animation: none !important; }
 }
@@ -263,8 +251,6 @@ section.story { display: block; min-height: 0; height: calc(var(--steps) * 100vh
 </head>
 <body>
 <div class="progress" aria-hidden="true"></div>
-<div class="frame" aria-hidden="true"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
-<div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="#4f6ef7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -273,74 +259,79 @@ section.story { display: block; min-height: 0; height: calc(var(--steps) * 100vh
 
 <main>
 <!-- 1. 표지 + 시작 모션 -->
-<section id="cover" class="in">
-  <h1 class="cover-title">
-    <span class="l1 rv" style="--d:0">손이 많이 가는 엑셀 작업,</span>
-    <span class="l2 rv" style="--d:1">이제 말로 하세요.</span>
-  </h1>
-  <p class="cover-sub rv" style="--d:2">엑셀 AI 도우미, 셀리</p>
-  <p class="cover-desc rv" style="--d:2">열려 있는 엑셀에 평소 말로 요청하면, 셀리가 직접 정리해 드립니다.</p>
-  <div class="pills rv" style="--d:3"><span><span class="pill">발표자</span>최은기</span><span><span class="pill">소속</span>포스코 경영기획실</span></div>
-  <div class="demo rv" style="--d:4" id="demo"></div>
-  <div class="scroll-hint">SCROLL ↓</div>
-</section>
+<section class="slide in" id="cover"><div class="stage">
+  <div class="cover-l">
+    <h1 class="ctitle">
+      <span class="l1 rv" style="--d:0">손이 많이 가는<br>엑셀 작업,</span>
+      <span class="l2 rv" style="--d:1">이제 말로 하세요.</span>
+    </h1>
+    <p class="csub rv" style="--d:2">엑셀 AI 도우미, 셀리</p>
+    <p class="cdesc rv" style="--d:2">열려 있는 엑셀에 평소 말로 요청하면,<br>셀리가 직접 정리해 드립니다.</p>
+    <div class="pills rv" style="--d:3"><span><span class="pill">발표자</span>최은기</span><span><span class="pill">소속</span>포스코 경영기획실</span></div>
+  </div>
+  <div class="cover-r"><div class="demo rv" style="--d:3" id="demo"></div></div>
+</div></section>
 
-<!-- 2. 질문 -->
-<section id="ask">
-  <p class="eyebrow rv">잠깐, 질문 하나</p>
-  <h2 class="cover-title">
-    <span class="l1 rv" style="--d:1">이번 주, 엑셀 정리에</span>
-    <span class="l2 rv" style="--d:2">몇 시간 쓰셨나요?</span>
-  </h2>
-</section>
+<!-- 2. 질문 하나 -->
+<section class="slide" id="ask"><div class="stage">
+  <div class="center">
+    <p class="eyebrow rv">잠깐, 질문 하나</p>
+    <h2 class="ctitle">
+      <span class="l1 rv" style="--d:1">이번 주, 엑셀 정리에</span>
+      <span class="l2 rv" style="--d:2">몇 시간 쓰셨나요?</span>
+    </h2>
+  </div>
+</div></section>
 
-<!-- 3. 나의 경험 ①: Case 1~3 (스크롤 세 번) -->
-<section id="story1" class="story" data-steps="3" style="--steps:3">
+<!-- 3. 나의 경험 ①: Case 1~3 (넘길 때마다 Case 하나) -->
+<section class="slide story" id="story1" data-steps="3" style="--steps:3">
   <i class="stop" style="--k:0"></i><i class="stop" style="--k:1"></i><i class="stop" style="--k:2"></i>
-  <div class="sticky">
-    <div class="head"><h2><svg><use href="#check"/></svg>나의 경험 ①</h2><p>그룹사 거래금액 실적을 정리하며</p></div>
-    <div class="body"><div class="wrap exp">
+  <div class="pin"><div class="stage">
+    <header class="shead"><svg><use href="#check"/></svg><h2>나의 경험 ①</h2><p>그룹사 거래금액 실적을 정리하며</p></header>
+    <div class="bd"><div class="exp">
       <figure class="sheet rv">
         <figcaption class="sheet-bar"><span class="xlogo">X</span>거래내역.xlsx<span class="doing" data-texts="✎ 회사명을 한 칸씩 고치는 중…|✎ 연도를 한 칸씩 입력하는 중…|✎ 전표를 읽고 유형을 적는 중…"></span></figcaption>
         <table class="xt" id="xt" aria-label="거래 데이터 예시"></table>
         <div class="sheet-more">⋮ 연도별 약 2만 행</div>
       </figure>
       <ol class="cases">
-        <li class="case" data-k="0"><span class="tag">Case 1</span><div><h3>회사명 하나로 합치기</h3><p>그룹사와 거래금액 실적을 맞추는데, 한 회사가 <b>지역별로 사업자등록</b>되어 있어 1개사로 <b>수작업 수정</b></p></div></li>
-        <li class="case" data-k="1"><span class="tag">Case 2</span><div><h3>연도 직접 입력</h3><p>연도별로 거래금액을 정리하는데, 데이터의 <b>날짜가 텍스트로 출력</b>되어 연도를 <b>수작업 입력</b></p></div></li>
-        <li class="case" data-k="2"><span class="tag">Case 3</span><div><h3>거래유형 구분</h3><p>회사별 거래유형이 정리되지 않아, <b>전표 내용을 하나하나 보면서</b> 거래유형을 <b>수작업 구분</b></p></div></li>
+        <li class="case" data-k="0"><h3><span class="tag">Case 1</span>회사명 하나로 합치기</h3><p>그룹사와 거래금액 실적을 맞추는데, 한 회사가 <b>지역별로 사업자등록</b>되어 있어 1개사로 <b>수작업 수정</b></p></li>
+        <li class="case" data-k="1"><h3><span class="tag">Case 2</span>연도 직접 입력</h3><p>연도별로 거래금액을 정리하는데, 데이터의 <b>날짜가 텍스트로 출력</b>되어 연도를 <b>수작업 입력</b></p></li>
+        <li class="case" data-k="2"><h3><span class="tag">Case 3</span>거래유형 구분</h3><p>회사별 거래유형이 정리되지 않아, <b>전표 내용을 하나하나 보면서</b> 거래유형을 <b>수작업 구분</b></p></li>
       </ol>
     </div></div>
-  </div>
+  </div></div>
 </section>
 
-<!-- 4. 나의 경험 ②: Case 4 (스크롤 세 번) -->
-<section id="story2" class="story" data-steps="3" style="--steps:3">
+<!-- 4. 나의 경험 ②: Case 4 (넘길 때마다 한 단계) -->
+<section class="slide story" id="story2" data-steps="3" style="--steps:3">
   <i class="stop" style="--k:0"></i><i class="stop" style="--k:1"></i><i class="stop" style="--k:2"></i>
-  <div class="sticky">
-    <div class="head"><h2><svg><use href="#check"/></svg>나의 경험 ②</h2><p>그룹사별 최근 10년 거래금액 정리</p></div>
-    <div class="body"><div class="wrap exp2">
-      <div class="case4 rv"><span class="tag">Case 4</span><p>그룹사별 최근 10년간 거래금액을 정리하는데, <b>Case 1~3 작업을 끝내고</b> 연도별 피벗 테이블을 만들어 아래 표 양식에 정리</p></div>
-      <div class="years" id="years"></div>
-      <p class="total">연도별 약 2만 행 × 10년 = <b>약 20만 행</b> &nbsp;→&nbsp; 연도마다 피벗을 만들어 표 양식에 옮겨 적기</p>
-      <div class="flow">
-        <table class="gt" id="gt" aria-label="그룹사별 연도별 거래금액 정리 양식"></table>
-        <div class="clock" aria-hidden="true"><svg viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="46" fill="#fff" stroke="#c9cff5" stroke-width="3"/>
-          <path d="M50 8v7M50 85v7M8 50h7M85 50h7" stroke="#9a9aa2" stroke-width="3" stroke-linecap="round"/>
-          <line class="mh" x1="50" y1="50" x2="50" y2="16" stroke="#4f6ef7" stroke-width="3.5" stroke-linecap="round"/>
-          <line class="hh" x1="50" y1="50" x2="50" y2="28" stroke="#2b2b2e" stroke-width="5" stroke-linecap="round"/>
-          <circle cx="50" cy="50" r="4" fill="#2b2b2e"/></svg><b>거의 하루</b></div>
+  <div class="pin"><div class="stage">
+    <header class="shead"><svg><use href="#check"/></svg><h2>나의 경험 ②</h2><p>그룹사별 최근 10년 거래금액 정리</p></header>
+    <div class="bd">
+      <div class="exp2">
+        <div class="case4 rv"><span class="tag">Case 4</span><p>그룹사별 최근 10년간 거래금액을 정리하는데, <b>Case 1~3 작업을 끝내고</b> 연도별 피벗 테이블을 만들어 아래 표 양식에 정리</p></div>
+        <div class="years" id="years"></div>
+        <p class="total">연도별 약 2만 행 × 10년 = <b>약 20만 행</b> &nbsp;→&nbsp; 연도마다 피벗을 만들어 표 양식에 옮겨 적기</p>
+        <div class="flow">
+          <table class="gt" id="gt" aria-label="그룹사별 연도별 거래금액 정리 양식"></table>
+          <div class="clock" aria-hidden="true"><svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="46" fill="#fff" stroke="#c9cff5" stroke-width="3"/>
+            <path d="M50 8v7M50 85v7M8 50h7M85 50h7" stroke="#9a9aa2" stroke-width="3" stroke-linecap="round"/>
+            <line class="mh" x1="50" y1="50" x2="50" y2="16" stroke="#4f6ef7" stroke-width="3.5" stroke-linecap="round"/>
+            <line class="hh" x1="50" y1="50" x2="50" y2="28" stroke="#2b2b2e" stroke-width="5" stroke-linecap="round"/>
+            <circle cx="50" cy="50" r="4" fill="#2b2b2e"/></svg><b>거의 하루</b></div>
+        </div>
       </div>
-      <p class="punch"><em>거의 하루 동안</em>, 엑셀 작업과 숫자 검증에 시간을 보냈습니다!</p>
-    </div></div>
-  </div>
+      <p class="punch"><em>거의 하루 동안</em>엑셀 작업과 숫자 검증에 시간을 보냈습니다!</p>
+    </div>
+  </div></div>
 </section>
 
 <!-- 5. 셀리라면, 한 문장 -->
-<section id="oneline">
-  <div class="head"><h2><svg><use href="#check"/></svg>셀리라면, 한 문장</h2><p>Case 4 같은 연도별 정리를 말로</p></div>
-  <div class="body"><div class="wrap cause">
+<section class="slide" id="oneline"><div class="stage">
+  <header class="shead"><svg><use href="#check"/></svg><h2>셀리라면, 한 문장</h2><p>Case 4 같은 연도별 정리를 말로</p></header>
+  <div class="bd"><div class="cause">
     <div class="cause-list">
       <div class="cause-item rv" style="--d:0"><span class="tag">연도 입력</span><p>날짜에서 연도를 뽑아 <b>한 칸씩 입력</b></p></div>
       <div class="cause-item rv" style="--d:1"><span class="tag">피벗 10번</span><p>연도마다 <b>피벗 테이블을 따로</b> 만들기</p></div>
@@ -353,40 +344,40 @@ section.story { display: block; min-height: 0; height: calc(var(--steps) * 100vh
       <p><span class="quote">“연도별, 회사별 지불금액을<br>새로운 시트에 넣어줘.”</span>말 한 줄이면 새 시트에<br>회사 × 연도 표가 만들어집니다.</p>
     </div>
   </div></div>
-</section>
+</div></section>
 
 <!-- 6. 시연 영상 -->
-<section id="video">
-  <div class="head"><h2><svg><use href="#check"/></svg>직접 보시죠</h2><p>회사별·연도별 지불금액을 새 시트에 정리하기</p></div>
-  <div class="body"><div class="video rv"><video src="assets/demo.mp4" controls preload="metadata" playsinline></video></div></div>
-</section>
+<section class="slide" id="video"><div class="stage">
+  <header class="shead"><svg><use href="#check"/></svg><h2>직접 보시죠</h2><p>회사별·연도별 지불금액을 새 시트에 정리하기</p></header>
+  <div class="bd"><div class="video rv"><video src="assets/demo.mp4" controls preload="metadata" playsinline></video></div></div>
+</div></section>
 
-<!-- 7. 기능 -->
-<section id="features">
-  <div class="head"><h2><svg><use href="#check"/></svg>이렇게 말해 보세요</h2><p>내일 바로 써 볼 수 있는 말</p></div>
-  <div class="body"><div class="wrap">
+<!-- 7. 이렇게 말해 보세요 -->
+<section class="slide" id="features"><div class="stage">
+  <header class="shead"><svg><use href="#check"/></svg><h2>이렇게 말해 보세요</h2><p>내일 바로 써 볼 수 있는 말</p></header>
+  <div class="bd"><div>
     <div class="cards">
       <div class="card rv" style="--d:0">
         <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8v38h38"/><path d="M8 18h38M8 28h38M8 38h38" stroke="#c9cff5"/><path d="M14 38l9-12 8 6 11-16"/><circle cx="23" cy="26" r="2.2" fill="#4f6ef7"/><circle cx="31" cy="32" r="2.2" fill="#4f6ef7"/></svg>
-        <h3>합계·요약</h3><div class="say">“회사별 연도별 금액 합계를 수식으로 만들어줘”</div><p>합계표나 피벗을 엑셀 계산식으로 만듭니다.</p><span class="chip">→ Case 4 같은 일</span></div>
+        <h3>합계·요약</h3><div class="say">“회사별 연도별 금액 합계를 수식으로 만들어줘”</div><p>합계표나 피벗을 엑셀 계산식으로 만듭니다.</p></div>
       <div class="card rv" style="--d:1">
         <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10h38L32 27v14l-10 5V27z"/></svg>
         <h3>골라보기·정렬</h3><div class="say">“금액 1억 넘는 것만 보이게 하고 큰 순서로 정렬해줘”</div><p>조건에 맞는 행만 남기고 순서를 맞춥니다.</p></div>
       <div class="card rv" style="--d:2">
         <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="8" width="16" height="16" rx="3"/><rect x="31" y="8" width="16" height="16" rx="3"/><rect x="7" y="31" width="16" height="16" rx="3"/><rect x="31" y="31" width="16" height="16" rx="3" fill="#e9edfe"/></svg>
-        <h3>자동 분류</h3><div class="say">“거래 설명을 보고 유형을 분류해줘”</div><p>글 내용을 읽고 알맞은 유형을 새 열에 적습니다.</p><span class="chip">→ Case 3 같은 일</span></div>
+        <h3>자동 분류</h3><div class="say">“거래 설명을 보고 유형을 분류해줘”</div><p>글 내용을 읽고 알맞은 유형을 새 열에 적습니다.</p></div>
       <div class="card rv" style="--d:3">
         <svg viewBox="0 0 54 54" fill="none" stroke="#4f6ef7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="27" cy="27" r="19"/><circle cx="27" cy="27" r="11"/><circle cx="27" cy="27" r="3" fill="#4f6ef7"/></svg>
         <h3>목표값 찾기</h3><div class="say">“영업이익이 0이 되려면 매출이 얼마여야 해?”</div><p>원하는 결과가 나오는 입력값을 찾아 줍니다.</p></div>
     </div>
     <div class="band rv" style="--d:4"><svg><use href="#check-c"/></svg>이 밖에도 중복·빈칸 찾기, 여러 시트 합치기까지 말로 요청할 수 있습니다.</div>
   </div></div>
-</section>
+</div></section>
 
-<!-- 8. 안심 -->
-<section id="safe">
-  <div class="head"><h2><svg><use href="#check"/></svg>걱정되는 점, 미리 답합니다</h2><p>회사 데이터를 다루니까, 안전장치부터</p></div>
-  <div class="body"><div class="wrap">
+<!-- 8. 걱정되는 점 -->
+<section class="slide" id="safe"><div class="stage">
+  <header class="shead"><svg><use href="#check"/></svg><h2>걱정되는 점, 미리 답합니다</h2><p>회사 데이터를 다루니까, 안전장치부터</p></header>
+  <div class="bd"><div style="width:100%">
     <p class="lead rv">셀리는 결과를 바로 엑셀에 적용합니다.<br>그래서 잘못됐을 때 되돌리는 방법을 함께 갖추고 있습니다.</p>
     <div class="checks">
       <div class="rv" style="--d:1"><svg><use href="#check"/></svg><span><b>되돌리기 버튼 한 번</b>이면 직전 작업 전으로 돌아갑니다.</span></div>
@@ -394,24 +385,30 @@ section.story { display: block; min-height: 0; height: calc(var(--steps) * 100vh
       <div class="rv" style="--d:3"><svg><use href="#check"/></svg><span>결과는 <b>엑셀 계산식</b>으로 남아 직접 확인할 수 있습니다.</span></div>
     </div>
   </div></div>
-</section>
+</div></section>
 
 <!-- 9. 마무리 -->
-<section id="end">
-  <h2 class="cover-title">
-    <span class="l1 rv" style="--d:0">손 많이 가는 엑셀 작업,</span>
-    <span class="l2 rv" style="--d:1">이제 셀리에게 말로.</span>
-  </h2>
-  <p class="cover-sub rv" style="--d:2">경청해 주셔서 감사합니다</p>
-  <p class="cover-desc rv" style="--d:2">써 보고 싶으시거나 궁금한 점이 있으면 언제든 연락 주세요.</p>
-  <div class="pills rv" style="--d:3"><span><span class="pill">발표자</span>최은기</span><span><span class="pill">소속</span>포스코 경영기획실</span></div>
-</section>
+<section class="slide" id="end"><div class="stage">
+  <div class="center">
+    <h2 class="ctitle">
+      <span class="l1 rv" style="--d:0">손 많이 가는 엑셀 작업,</span>
+      <span class="l2 rv" style="--d:1">이제 셀리에게 말로.</span>
+    </h2>
+    <p class="csub rv" style="--d:2">경청해 주셔서 감사합니다</p>
+    <p class="cdesc rv" style="--d:2">써 보고 싶으시거나 궁금한 점이 있으면 언제든 연락 주세요.</p>
+    <div class="pills rv" style="--d:3"><span><span class="pill">발표자</span>최은기</span><span><span class="pill">소속</span>포스코 경영기획실</span></div>
+  </div>
+</div></section>
 </main>
 
 <script src="assets/step-window.js"></script>
 <script>
 (() => {
   const { ease, typed, cue, glide } = HTMLDemo;
+
+  // 모든 슬라이드에 템플릿 틀(안내선·점 세 개)
+  document.querySelectorAll('.stage').forEach((s) => s.insertAdjacentHTML('afterbegin',
+    '<div class="chrome" aria-hidden="true"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><span class="d"><b></b><b></b><b></b></span></div>'));
 
   // 데모 파일 '거래내역_테스트용_500행.xlsx'의 실제 값
   const DATA = [
@@ -561,7 +558,7 @@ section.story { display: block; min-height: 0; height: calc(var(--steps) * 100vh
   const KIND = { 구매비: '구매', 임차료: '임차', 교육훈련비: '교육', 운반비: '운송', 용역비: '용역', 건설직접비: '공사' };
   let e1 = 0;
   document.getElementById('xt').innerHTML =
-    '<colgroup><col style="width:15%"><col style="width:9%"><col style="width:15%"><col style="width:31%"><col style="width:17%"><col style="width:13%"></colgroup>'
+    '<colgroup><col style="width:15%"><col style="width:9%"><col style="width:15%"><col style="width:30%"><col style="width:18%"><col style="width:13%"></colgroup>'
     + '<thead><tr><th>INVOICE_DATE</th><th class="add">연도</th><th>지불금액</th><th>내용</th><th>회사명</th><th class="add">거래유형</th></tr></thead><tbody>'
     + DATA.slice(0, 12).map((d, r) => `<tr><td class="txt">${d[1]}</td><td class="e e2" style="--i:${r}"><b>${d[1].slice(0, 4)}</b></td>`
       + `<td class="n">${won(d[3])}</td><td>${d[4]}</td>`
@@ -582,8 +579,10 @@ section.story { display: block; min-height: 0; height: calc(var(--steps) * 100vh
     }).join('')}</tr>`).join('')
     + '</tbody>';
 
-  // 스크롤 진행 막대, 장별 등장, 나의 경험 장의 단계
-  const bar = document.querySelector('.progress');
+  // 1920 × 1080 판을 화면에 맞춘다
+  const fit = () => document.documentElement.style.setProperty('--s', Math.min(innerWidth / 1920, innerHeight / 1080));
+
+  // 나의 경험 장: 한 화면 높이 스크롤할 때마다 다음 단계(s0 → s1 → s2)
   const stories = [...document.querySelectorAll('.story')];
   function stepStories() {
     stories.forEach((s) => {
@@ -601,21 +600,24 @@ section.story { display: block; min-height: 0; height: calc(var(--steps) * 100vh
       if (doing) doing.textContent = doing.dataset.texts.split('|')[k] || '';
     });
   }
+  const bar = document.querySelector('.progress');
   const onScroll = () => {
     const max = document.documentElement.scrollHeight - innerHeight;
     bar.style.setProperty('--p', max > 0 ? scrollY / max : 0);
     stepStories();
   };
   addEventListener('scroll', onScroll, { passive: true });
-  addEventListener('resize', onScroll);
+  addEventListener('resize', () => { fit(); onScroll(); });
+  fit();
   onScroll();
-  const sections = [...document.querySelectorAll('section')];
-  const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add('in')), { rootMargin: '0px 0px -25% 0px' });
-  sections.forEach((s) => io.observe(s));
 
-  // 발표용 넘기기: 스페이스·화살표·PageUp/Down으로 한 장씩. 나의 경험 장은 Case마다 한 번씩 멈춘다.
+  const slides = [...document.querySelectorAll('.slide')];
+  const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add('in')), { rootMargin: '0px 0px -25% 0px' });
+  slides.forEach((s) => io.observe(s));
+
+  // 발표용 넘기기: 스페이스·화살표·PageUp/Down으로 한 장씩. 나의 경험 장은 단계마다 한 번씩 멈춘다.
   // 영상·버튼을 누른 뒤에도 키가 그쪽(재생·되감기·클릭)으로 가지 않게 먼저 가로채고 포커스를 뺀다.
-  const stops = () => sections.flatMap((s) => Array.from({ length: Number(s.dataset.steps || 1) }, (_, k) => s.offsetTop + k * innerHeight));
+  const stops = () => slides.flatMap((s) => Array.from({ length: Number(s.dataset.steps || 1) }, (_, k) => s.offsetTop + k * innerHeight));
   addEventListener('keydown', (e) => {
     const next = ['ArrowDown', 'ArrowRight', 'PageDown', ' '].includes(e.key);
     const prev = ['ArrowUp', 'ArrowLeft', 'PageUp'].includes(e.key);
