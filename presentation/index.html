@@ -613,18 +613,20 @@ section.story { display: block; min-height: 0; height: calc(var(--steps) * 100vh
   const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add('in')), { rootMargin: '0px 0px -25% 0px' });
   sections.forEach((s) => io.observe(s));
 
-  // 발표용 넘기기: 화살표·PageUp/Down·스페이스로 한 장씩. 나의 경험 장은 Case마다 한 번씩 멈춘다.
+  // 발표용 넘기기: 스페이스·화살표·PageUp/Down으로 한 장씩. 나의 경험 장은 Case마다 한 번씩 멈춘다.
+  // 영상·버튼을 누른 뒤에도 키가 그쪽(재생·되감기·클릭)으로 가지 않게 먼저 가로채고 포커스를 뺀다.
   const stops = () => sections.flatMap((s) => Array.from({ length: Number(s.dataset.steps || 1) }, (_, k) => s.offsetTop + k * innerHeight));
   addEventListener('keydown', (e) => {
-    if (e.target.closest?.('video, button, input')) return;
     const next = ['ArrowDown', 'ArrowRight', 'PageDown', ' '].includes(e.key);
     const prev = ['ArrowUp', 'ArrowLeft', 'PageUp'].includes(e.key);
     if (!next && !prev) return;
     e.preventDefault();
+    e.stopPropagation();
+    document.activeElement?.blur();
     const all = stops();
     const top = next ? all.find((y) => y > scrollY + 4) : all.reverse().find((y) => y < scrollY - 4);
     if (top !== undefined) scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-  });
+  }, true);
 })();
 </script>
 </body>
