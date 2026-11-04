@@ -1,0 +1,268 @@
+name: celly-continue-without-upload
+mode: desktop
+output: outputs/demo-video-followup
+viewport:
+  width: 1920
+  height: 1080
+voice:
+  mode: none
+durationLimitMs: null
+recording:
+  intervalMs: 250
+  processingVisibleMaxMs: 5000
+  captureBackend: ffmpeg-desktop
+  requireLossless: true
+windows:
+  celly:
+    titleRegex: ^셀리$
+    appRegex: python(?:w)?\.exe$
+    launch: never
+  excel:
+    titleRegex: ^거래내역_테스트용_500행(?:\.xlsx)? - Excel$
+    appRegex: EXCEL
+    launch: never
+sourceWorkbook: C:/Users/user/Desktop/project/kee-s-project/거래내역_테스트용_500행.xlsx
+design:
+  background: '#F3F5F4'
+  ink: '#1C2825'
+  muted: '#52645C'
+  accent: '#087E70'
+  labels: plain-text
+  font: Pretendard
+  skill: design-taste-frontend
+  direction: quiet-instrument
+  directionSeed: 259388649
+  applicationContent: actual-capture
+  layout: 'After 38 seconds, fixed full workspace with Excel left and Celly right; local loupe only'
+editing:
+  opening:
+    durationMs: 7000
+    title: 셀리
+    subtitle: 열린 Excel에 글로 요청하는 AI 도우미, 셀리.
+  chapterCardMs: 2000
+  chapterCardsBeforeSeconds: 38
+  fullWorkspaceAfterSeconds: 38
+  fullWorkspaceSeconds: 97
+  localLoupe:
+    maxSimultaneous: 1
+    entryMs: 320
+    exitMs: 240
+    sourceMarker: thin-accent-outline
+    placement: blank-excel-area
+  ending:
+    durationMs: 5000
+    title: 파일 첨부 없이, 말로 이어가는 Excel 작업
+    composition: full-workspace
+  music: 신나지만 시끄럽지 않은 배경음
+  clickEffects: true
+  virtualCursor: false
+  highlights:
+  - 동일한 연결 파일명
+  - 작업 시트
+  - 첫 요청과 완료
+  - 추가 요청 1
+  - 연도별 합계 행
+  - 회사별 합계 열
+  - 추가 요청 2
+  - 천원 단위 표시
+  - Excel 저장
+  crf: 14
+  layout: fixed-workspace-with-local-loupe-after-38s
+  estimatedDurationSeconds:
+  - 120
+  - 130
+  cardOrder:
+  - 1. 열린 Excel 연결
+  - 2. 회사별·연도별 집계
+  - 3. 첨부 없이 이어서 작업
+  - 4. 천원 단위로 표시
+  - 5. 확인하고 저장
+  continuity: 같은 셀리 세션과 통합문서에서 세 요청을 연속 실행하며 후속 두 요청은 같은 결과 시트에 적용한다. 38초까지 기존 내용과 시간을 유지하고, 38초부터 끝까지 두 앱 전체의 위치와 크기를 고정한다. 요청·합계·수식·저장 상태만 한 번에 하나의 국소 돋보기로 보여준다. 전송은 각 4초, 결과 반영은 각 6초의 실제 녹화다. 이후 단계 안내와 엔딩도 전체 화면을 유지한다. 전체 작업 공간은 총 97초다.
+  claims: 열린 Excel과 연결하여 첨부 없이 후속 작업한다는 실제 동작을 보여준다. 말로 요청은 한국어 문장을 입력한다는 뜻이며 음성 입력 기능으로 연출하지 않는다. 다른 제품 전체가 이를 지원하지 않는다는 단정 문구나 비교표는 넣지 않는다. 처리 화면 최대 5초는 편집 기준이며 실제 처리시간의 보장이 아니다. 대기를 생략한 전환에는 '처리 대기 일부 생략'을 읽을 수 있게 표시한다.
+chapters:
+- id: connect
+  title: 연결 준비
+  caption: 열린 Excel 파일을 셀리와 연결합니다.
+  actions:
+  - do: observe
+    window: excel
+    target: 원본 거래내역과 파일명 확인
+  - do: observe
+    window: celly
+    target: 변경된 첫 화면의 요청 예시 세 개를 촬영하고 선택된 파일과 작업 시트 확인. API 키 창은 열지 않음
+  - do: hold
+    ms: 3000
+- id: request
+  title: 회사별·연도별 집계
+  caption: 회사별·연도별 집계표를 새 시트에 만들어 달라고 입력합니다.
+  actions:
+  - do: click
+    window: celly
+    target: 셀리에게 하고 싶은 일을 말로 적어주세요 입력창
+  - do: type
+    window: celly
+    text: 연도별, 회사별 지불금액을 새로운 시트에 넣어줘. 행에는 회사명, 열에는 연도로 구성하면 돼.
+  - do: hold
+    ms: 2000
+  - do: click
+    window: celly
+    target: 보내기
+    beginRequest: true
+  - do: wait_result
+    window: celly
+    visibleMaxMs: 5000
+    timeoutMs: 180000
+    readyRegex: ✔ (?:작업|적용) 완료
+    errorRegex: ⚠ 일부만|오류가 발생|작업 실패
+- id: initial_result
+  title: 첫 집계 결과 확인
+  caption: 새 시트에서 회사명·연도·지불금액을 확인합니다.
+  actions:
+  - do: observe
+    window: celly
+    target: 이번 첫 요청의 실제 작업 완료와 생성된 결과 시트명 확인
+  - do: click
+    window: excel
+    target: 이번 요청으로 만들어진 새 시트 탭
+  - do: observe
+    window: excel
+    target: 행=회사명, 열=연도, 값=지불금액 합계. 원본과 전체 집계값 대조. 이 시트를 후속 작업 대상으로 유지
+  - do: hold
+    ms: 4000
+- id: totals_request
+  title: 첨부 없이 합계 추가
+  caption: 파일을 다시 첨부하지 않고, 같은 표에 합계를 추가합니다.
+  actions:
+  - do: click
+    window: celly
+    target: '새로고침: 현재 Excel 결과 시트를 작업 대상으로 갱신. 업로드하지 않음'
+  - do: observe
+    window: celly
+    target: 같은 거래내역_테스트용_500행.xlsx, 방금 만든 동일한 결과 시트, 기존 대화가 유지되는지 확인. 편집 시 '같은 파일 · 같은 시트 · 이어지는 대화' 강조
+  - do: click
+    window: celly
+    target: 셀리에게 하고 싶은 일을 말로 적어주세요 입력창
+  - do: type
+    window: celly
+    text: 각 연도별 합계, 회사별 합계를 구해줘
+  - do: hold
+    ms: 2000
+  - do: click
+    window: celly
+    target: 보내기
+    beginRequest: true
+  - do: wait_result
+    window: celly
+    visibleMaxMs: 5000
+    timeoutMs: 180000
+    readyRegex: ✔ (?:작업|적용) 완료
+    errorRegex: ⚠ 일부만|오류가 발생|작업 실패
+- id: totals_result
+  title: 연도별·회사별 합계 확인
+  caption: 아래에는 연도별 합계, 오른쪽에는 회사별 합계가 추가됩니다.
+  actions:
+  - do: observe
+    window: celly
+    target: 합계 추가 요청의 실제 완료 확인. 같은 파일·결과 시트인지 확인
+  - do: observe
+    window: excel
+    target: 같은 결과 시트 아래에 연도별 합계 행, 오른쪽에 회사별 합계 열이 추가됐는지 확인. 원래 교차표 값과 빈 회사명 묶음 유지. 합계 행·열의 교차점은 전체 총합 한 번만 계산. 다음 표시형식 변경의 비교를 위해 현재 금액 셀과 수식 입력줄을 변경 전 화면으로 확보
+  - do: hold
+    ms: 6000
+- id: format_request
+  title: 표시도 말로 변경
+  caption: 같은 대화에서 천원 단위 표시도 요청합니다.
+  actions:
+  - do: click
+    window: celly
+    target: '새로고침: 현재 Excel 결과 시트를 작업 대상으로 갱신. 업로드하지 않음'
+  - do: observe
+    window: celly
+    target: 같은 거래내역_테스트용_500행.xlsx, 방금 만든 동일한 결과 시트, 기존 대화가 유지되는지 확인
+  - do: click
+    window: celly
+    target: 셀리에게 하고 싶은 일을 말로 적어주세요 입력창
+  - do: type
+    window: celly
+    text: 표시형식을 천원단위로 바꿔줘
+  - do: hold
+    ms: 2000
+  - do: click
+    window: celly
+    target: 보내기
+    beginRequest: true
+  - do: wait_result
+    window: celly
+    visibleMaxMs: 5000
+    timeoutMs: 180000
+    readyRegex: ✔ (?:작업|적용) 완료
+    errorRegex: ⚠ 일부만|오류가 발생|작업 실패
+- id: format_result
+  title: 천원 단위 표시 확인
+  caption: 원래 금액은 유지하고, 화면 표시는 천원 단위로 바꿉니다.
+  actions:
+  - do: observe
+    window: celly
+    target: 표시형식 변경 요청의 실제 완료 확인
+  - do: observe
+    window: excel
+    target: 동일 결과 시트의 금액과 합계만 천원 단위 표시. 연도·회사명·원래 값·수식은 보존하고 표시형식으로 검증. 전체 화면의 실제 변화 6초, 총합 돋보기 2초, F13 수식 돋보기 2초, 최종 전체 화면 5초로 구성. 변경된 금액은 천원 단위를 명시하고 과거 화면으로 되돌아가는 비교 컷은 넣지 않음
+  - do: hold
+    ms: 8000
+- id: save
+  title: 확인하고 저장
+  caption: 이어 작업한 결과를 Excel에서 저장하세요.
+  actions:
+  - do: observe
+    window: excel
+    target: 기초 교차표, 두 방향 합계, 천원 표시, 원래 값·수식 보존을 모두 검증한 뒤 저장
+  - do: key
+    window: excel
+    key: Control_L+s
+    target: 완료된 결과를 Excel에서 저장
+  - do: observe
+    window: excel
+    target: 파일명과 저장 완료 상태 확인. 예상하지 못한 대화상자는 멈추고 관측
+  - do: hold
+    ms: 1500
+gif:
+  durationMs: 10000
+  audio: none
+  segments:
+  - durationMs: 2000
+    chapter: totals_request
+    caption: Excel은 그대로, 셀리에 이어서 요청
+  - durationMs: 2000
+    chapter: totals_request
+    caption: 첨부 없이, 합계 추가 요청
+  - durationMs: 2000
+    chapter: totals_result
+    caption: 같은 표에 연도별·회사별 합계 추가
+  - durationMs: 2000
+    chapter: format_request
+    caption: 표시형식도 말로 변경
+  - durationMs: 2000
+    chapter: format_result
+    caption: 같은 Excel 파일에서, 천원 단위 표시까지
+message: 열린 Excel에 바로 적용하고, 파일을 다시 첨부하지 않고 후속 작업을 이어갑니다. 지금 열린 Excel에서, 바꾸고 싶은 일을 입력해 보세요.
+continuationRules:
+  session: 같은 셀리 대화와 같은 통합문서를 유지한다. 재시작·파일 업로드·재첨부하지 않는다.
+  targetSheet: 첫 요청에서 실제 생성된 시트를 고른 뒤 셀리 새로고침으로 작업 시트 문구를 확인한다. 이후 두 요청은 그 시트를 대상으로 한다.
+  totalPlacement:
+    annual: 기존 교차표 아래 합계 행
+    company: 기존 교차표 오른쪽 합계 열
+    grandTotal: 합계 행·열 교차점에 전체 총합 한 번
+  displayFormat:
+    scope: 결과 표의 금액과 합계 셀만
+    excelNumberFormat: '#,##0,'
+    unit: 천원
+    decimals: 0
+    preserveUnderlyingValues: true
+    preserveFormulas: true
+    exclude:
+    - 연도 머리글
+    - 회사명
+    - 원본 거래내역 시트
+  confirmation: 앱이 변경 계획의 확인 버튼을 요구하면 현재 화면을 관측하고 이번에 요청한 합계 추가/표시 변경 범위인지 확인한 뒤 승인한다. 계획·확인 대기 상태를 작업 완료로 취급하지 않는다.
+  verification: 연도별 합계·회사별 합계·전체 총합을 원본 숫자 금액으로 각각 대조한다. 천원 표시 전후 실제 값과 수식이 같고, 화면 표시만 금액/1000의 정수 반올림 결과인지 확인한다. 반올림된 화면 숫자를 다시 합산해 검증하지 않는다.
+captureStatus: 2026-11-03 전체 화면·돋보기 재편집 및 검증 완료. 38초부터 끝까지 전체 작업 공간 고정, 전체 화면 27개 장면·97초, 국소 돋보기 9개 장면, 실제 전체 화면 녹화 9개 사용. design-taste-frontend의 Quiet instrument 방향 적용. 출력은 123초 1920x1080 30fps MP4와 전체 화면을 유지하는 10초 1152x648 GIF. 전체 디코딩·인코딩 화면 22개·GIF 시간 검증 통과. 기존 계산 검증 60개 값, 총합 52902043315원, 값·수식·원본 500행 보존 및 저장 결과 유지. Excel 작업은 다시 실행하지 않음. 기존 완성본 및 발표자료 사본 교체와 해시 일치 확인. 편집 및 검증 기록은 outputs/demo-video-followup 내 JSON 참조.

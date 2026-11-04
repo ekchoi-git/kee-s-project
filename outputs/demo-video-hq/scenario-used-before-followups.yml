@@ -1,0 +1,318 @@
+name: celly-company-year-payment
+mode: desktop
+output: outputs/demo-video-hq
+viewport:
+  width: 1920
+  height: 1080
+voice:
+  mode: none
+durationLimitMs: null
+recording:
+  intervalMs: 250
+  processingVisibleMaxMs: 5000
+  captureBackend: ffmpeg-desktop
+  requireLossless: true
+windows:
+  celly:
+    titleRegex: ^셀리$
+    appRegex: python(?:w)?\.exe$
+    launch: never
+  excel:
+    titleRegex: ^거래내역_테스트용_500행(?:\.xlsx)? - Excel$
+    appRegex: EXCEL
+    launch: never
+sourceWorkbook: C:/Users/user/Desktop/project/kee-s-project/거래내역_테스트용_500행.xlsx
+design:
+  background: '#FFFFFF'
+  headerGradient:
+  - '#173B94'
+  - '#5795EF'
+  captionGradient:
+  - '#173B94'
+  - '#4B8BE7'
+  labels: blue-gradient
+  applicationContent: actual-capture
+  previewReference: C:/Users/user/.codex/generated_images/01a19af5-c5d7-7ea0-bac0-292310a06c11/exec-c84bf2bd-e007-4a0a-8cc5-0ab9b72bb9b0.png
+  layout: 'scene-focused: Celly input/reply close-ups, Excel result close-up'
+editing:
+  opening:
+    durationMs: 4000
+    title: 셀리
+    subtitle: Excel 작업을 말로 간편하게
+  chapterCardMs: 2000
+  ending:
+    durationMs: 5000
+    title: 반복되고 지겨운 Excel 작업, 셀리에게 말하세요.
+  music: 신나지만 시끄럽지 않은 배경음
+  clickEffects: true
+  virtualCursor: true
+  highlights:
+  - 연결 상태
+  - 입력창
+  - 보내기
+  - 작업 완료
+  - 새 시트
+  - 회사명 행
+  - 연도 열
+  - 지불금액 합계
+  - 저장
+  crf: 14
+  layout: scene-focused
+chapters:
+- id: connect
+  title: 연결 준비
+  caption: 열린 Excel 파일을 셀리와 연결합니다.
+  actions:
+  - do: observe
+    window: excel
+    target: 원본 거래내역과 파일명 확인
+  - do: observe
+    window: celly
+    target: 선택된 파일과 작업 시트 확인. API 키 창은 열지 않음
+  - do: hold
+    ms: 3000
+- id: request
+  title: 말로 요청하기
+  caption: 회사별·연도별 지불금액을 말로 요청하세요.
+  actions:
+  - do: click
+    window: celly
+    target: 셀리에게 하고 싶은 일을 말로 적어주세요 입력창
+  - do: type
+    window: celly
+    text: 연도별, 회사별 지불금액을 새로운 시트에 넣어줘. 행에는 회사명, 열에는 연도로 구성하면 돼.
+  - do: hold
+    ms: 2000
+  - do: click
+    window: celly
+    target: 보내기
+    beginRequest: true
+  - do: wait_result
+    window: celly
+    visibleMaxMs: 5000
+    timeoutMs: 180000
+    readyRegex: ✔ (?:작업|적용) 완료
+    errorRegex: ⚠ 일부만|오류가 발생|작업 실패
+- id: result
+  title: 결과 확인과 저장
+  caption: 새 시트에서 회사별·연도별 지불금액 합계를 확인하세요.
+  actions:
+  - do: observe
+    window: celly
+    target: 이번 요청의 작업 완료와 변경 내용 확인
+  - do: click
+    window: excel
+    target: 이번 요청으로 만들어진 새 시트 탭
+  - do: observe
+    window: excel
+    target: 행=회사명, 열=연도, 값=지불금액 합계. 원본과 실제 합계 대조
+  - do: hold
+    ms: 6000
+  - do: key
+    window: excel
+    key: Control_L+s
+    target: 검증한 결과를 Excel에서 저장
+  - do: observe
+    window: excel
+    target: 저장 완료. 대화상자가 뜨면 멈추고 확인
+  - do: hold
+    ms: 1500
+gif:
+  durationMs: 10000
+  audio: none
+  segments:
+  - durationMs: 2000
+    chapter: request
+    caption: 말로 요청
+  - durationMs: 5000
+    chapter: result
+    caption: 회사별·연도별 합계를 새 시트에
+  - durationMs: 3000
+    chapter: result
+    caption: 셀리
+  renderShots:
+  - shot: 6
+    seconds: 2
+    caption: 말로 요청
+  - shot: 12
+    seconds: 5
+    caption: 회사별·연도별 합계를 새 시트에
+  - shot: 14
+    seconds: 3
+    caption: 셀리
+editShots:
+- kind: opening
+  seconds: 4
+  title: 셀리
+  subtitle: Excel 작업을 말로 간편하게
+- kind: chapter
+  seconds: 2
+  title: 1. 연결 준비
+- kind: screen
+  seconds: 4
+  sample: 2
+  phase: 연결 준비
+  caption: 열린 Excel 파일을 셀리와 연결합니다.
+  panels:
+  - window: excel
+    area:
+    - 130
+    - 220
+    - 1660
+    - 670
+    crop:
+    - 280
+    - 226
+    - 1282
+    - 663
+- kind: screen
+  seconds: 4
+  sample: 2
+  phase: 연결 준비
+  caption: Excel 작업을 자연어로 요청할 수 있습니다.
+  panels:
+  - window: celly
+    area:
+    - 410
+    - 260
+    - 1100
+    - 620
+    crop:
+    - 20
+    - 180
+    - 505
+    - 505
+- kind: chapter
+  seconds: 2
+  title: 2. 말로 요청하기
+- kind: screen
+  seconds: 2
+  sample: 5
+  phase: 말로 요청하기
+  caption: 셀리 입력창에 원하는 작업을 적어주세요.
+  panels:
+  - &id001
+    window: celly
+    area:
+    - 190
+    - 300
+    - 1540
+    - 540
+    crop:
+    - 15
+    - 725
+    - 510
+    - 948
+  cursor:
+    window: celly
+    to:
+    - 160
+    - 135
+    from:
+    - 140
+    - 90
+    clickAt: 1.1
+- kind: screen
+  seconds: 8
+  sample: 6
+  phase: 말로 요청하기
+  caption: 회사별·연도별 지불금액을 새 시트로 정리해 달라고 요청합니다.
+  panels:
+  - *id001
+- kind: screen
+  seconds: 2
+  sample: 8
+  phase: 말로 요청하기
+  caption: 보내기를 누르면 셀리가 Excel 작업을 시작합니다.
+  panels:
+  - *id001
+  cursor:
+    window: celly
+    to:
+    - 463
+    - 191
+    from:
+    - 180
+    - 135
+    clickAt: 1.1
+- kind: screen
+  seconds: 5
+  samples:
+  - 10
+  - 11
+  phase: 처리 중
+  caption: 셀리가 요청을 읽고, 새 시트에 집계표를 만듭니다.
+  panels:
+  - window: celly
+    area:
+    - 250
+    - 300
+    - 1420
+    - 580
+    crop:
+    - 15
+    - 685
+    - 510
+    - 948
+- kind: chapter
+  seconds: 2
+  title: 3. 결과 확인과 저장
+- kind: screen
+  seconds: 6
+  sample: 13
+  phase: 결과 확인과 저장
+  caption: 완료 메시지에서 새 시트와 작업 내용을 확인하세요.
+  panels:
+  - window: celly
+    area:
+    - 330
+    - 200
+    - 1260
+    - 720
+    crop:
+    - 30
+    - 68
+    - 509
+    - 505
+- kind: screen
+  seconds: 4
+  sample: 17
+  phase: 결과 확인과 저장
+  caption: Excel에 회사별·연도별 집계 시트가 만들어졌습니다.
+  panels:
+  - &id002
+    window: excel
+    area:
+    - 200
+    - 180
+    - 1520
+    - 745
+- kind: screen
+  seconds: 8
+  sample: 17
+  phase: 결과 확인과 저장
+  caption: 행은 회사명, 열은 연도, 값은 지불금액 합계입니다.
+  panels:
+  - window: excel
+    area:
+    - 130
+    - 170
+    - 1660
+    - 745
+    crop:
+    - 72
+    - 252
+    - 1225
+    - 808
+- kind: screen
+  seconds: 6
+  sample: 23
+  phase: Excel에서 저장
+  caption: 확인한 결과는 Excel에서 Ctrl+S로 저장하세요.
+  panels:
+  - *id002
+  shortcut: Ctrl + S
+- kind: ending
+  seconds: 5
+  title: 셀리
+  subtitle: 반복되고 지겨운 Excel 작업, 셀리에게 말하세요.
