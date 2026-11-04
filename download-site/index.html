@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>셀리 다운로드</title>
+<meta name="description" content="말로 시키는 Excel AI 도우미 셀리 Windows 다운로드">
+<link rel="icon" href="celly-icon.png">
+<style>
+:root { --bg: #f7f7f5; --card: #fff; --text: #1f1f1d; --muted: #5f5e59; --line: #e3e1da; --brand: #01c3b9; --brand-ink: #04302e; }
+@media (prefers-color-scheme: dark) { :root { --bg: #161615; --card: #1f1f1d; --text: #f1efe8; --muted: #b5b3ab; --line: #383733; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 'Pretendard', 'Malgun Gothic', system-ui, sans-serif; }
+main { max-width: 640px; margin: 0 auto; padding: 56px 16px; }
+header { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+header img { width: 64px; height: 64px; }
+h1 { margin: 0; font-size: 32px; line-height: 1.2; }
+.lead { margin: 0 0 32px; color: var(--muted); font-size: 18px; }
+.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.btn { display: block; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); text-align: center; text-decoration: none; font-weight: 700; }
+.btn small { display: block; color: var(--muted); font-weight: 400; }
+.btn.main { border-color: var(--brand); background: var(--brand); color: var(--brand-ink); }
+.btn.main small { color: var(--brand-ink); }
+.btn:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+section { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+h2 { margin: 0 0 8px; font-size: 18px; }
+ul, ol { margin: 0; padding-left: 20px; }
+code { font-size: 12px; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .buttons { grid-template-columns: 1fr; } main { padding-top: 32px; } }
+</style>
+</head>
+<body>
+<main>
+  <header><img src="celly-icon.png" alt=""><h1>셀리</h1></header>
+  <p class="lead">말로 시키는 Excel AI 도우미</p>
+  <div class="buttons">
+    <a class="btn main" href="Celly.exe" download>exe 다운로드<small>Windows 64비트 · 약 62MB</small></a>
+    <a class="btn" href="Celly.zip" download>zip 다운로드<small>압축 파일 · 내용은 같습니다</small></a>
+  </div>
+  <section>
+    <h2>시작하기</h2>
+    <ol>
+      <li>Excel에서 작업할 파일을 엽니다.</li>
+      <li><code>Celly.exe</code>를 실행합니다. 설치는 필요 없습니다.</li>
+      <li>API Key 버튼을 눌러 OpenAI 또는 Claude API 키를 저장합니다.</li>
+    </ol>
+  </section>
+  <section>
+    <h2>필요한 것</h2>
+    <ul>
+      <li>Windows 64비트 PC</li>
+      <li>Microsoft Excel</li>
+      <li>본인의 OpenAI 또는 Claude API 키</li>
+    </ul>
+  </section>
+  <section>
+    <h2>실행이 막힐 때</h2>
+    <p>코드 서명이 없어 Windows 경고가 나올 수 있습니다. SmartScreen 창이 나오면 추가 정보, 실행 순서로 누릅니다. 회사 보안 정책이나 스마트 앱 컨트롤이 막는 PC에서는 실행되지 않을 수 있습니다.</p>
+  </section>
+  <section>
+    <h2>파일 확인값 (SHA256)</h2>
+    <p><code>b29fb4f109bae4c8352beed1feadc50e59ec0ea1c56ecfa40b189d523dd609d2</code></p>
+  </section>
+</main>
+</body>
+</html>

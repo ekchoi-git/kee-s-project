@@ -59,3 +59,8 @@ target/
 *.db
 ~$*
 __pycache__/
+
+# Download site binaries
+download-site/*.exe
+download-site/*.zip
+.vercel/

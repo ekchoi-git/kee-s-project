@@ -343,3 +343,11 @@
 
 - main 빌드에 회사 키 지원이 빠져 있어 로컬 `company` 브랜치에 main을 병합해 다시 빌드했다. 자세한 내용은 그 브랜치의 `Log.md`에 있다.
 - `company` 브랜치와 이 exe는 공개 저장소, GitHub Release 등 공개 위치에 올리지 않는다. 배포는 사내 공유 경로로 한다.
+
+## 2026-11-04 공개 다운로드 사이트
+
+- 사이트: https://celly-download.vercel.app (Vercel 프로젝트 `celly-download`, 계정 `ekchoi-git`). 소스는 `download-site/`.
+- 공개 파일은 `main` 빌드라 회사 키가 빠져 있다. exe 안에 사내 주소가 없음을 검사했다. SHA256 `b29fb4f109bae4c8352beed1feadc50e59ec0ea1c56ecfa40b189d523dd609d2`.
+- exe는 두 종류다. 회사용은 바탕화면 `Celly.exe`(`company` 빌드, 공개 금지), 공개용은 `download-site/Celly.exe`(`main` 빌드). 사용자 선택에 따라 공개 사이트에 회사용을 올리지 않는다.
+- 다시 배포: `main`에서 빌드해 `download-site/`의 exe, zip, 페이지의 SHA256을 바꾼 뒤 그 폴더에서 `npx vercel@65.11.0 deploy --prod --yes`. 파일 합계 128MB도 무료 계정으로 배포됐다.
+- 확인: 공개 주소에서 exe, zip을 받아 SHA256 일치. 코드 서명이 없어 받은 PC에서 경고나 차단이 나올 수 있다.
