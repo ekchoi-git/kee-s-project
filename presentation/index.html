@@ -71,7 +71,7 @@ b, strong { font-weight: 700; }
 .ctitle { margin: 0; letter-spacing: -.035em; line-height: 1.18; }
 .ctitle .l1 { display: block; font-weight: 400; font-size: 72px; color: #3a3a3e; }
 .ctitle .l2 { display: block; font-weight: 700; font-size: 88px; color: var(--blue); margin-top: 6px; }
-.csub { margin: 44px 0 10px; font-weight: 700; font-size: 28px; }
+.csub { margin: 40px 0 10px; font-weight: 700; font-size: 44px; letter-spacing: -.02em; }
 .cdesc { margin: 0 0 40px; font-size: 28px; color: var(--sub); line-height: 1.5; }
 .cover-l .pills { flex-direction: column; align-items: flex-start; gap: 16px; }
 .cover-l .pill { min-width: 126px; text-align: center; }
@@ -272,7 +272,7 @@ b, strong { font-weight: 700; }
       <span class="l1 rv" style="--d:0">손이 많이 가는<br>엑셀 작업,</span>
       <span class="l2 rv" style="--d:1">이제 말로 하세요.</span>
     </h1>
-    <p class="csub rv" style="--d:2">엑셀 AI 도우미, 셀리</p>
+    <p class="csub rv" style="--d:2">엑셀 AI 도우미 셀리</p>
     <p class="cdesc rv" style="--d:2">열려 있는 엑셀에 평소 말로 요청하면,<br>셀리가 직접 정리해 드립니다.</p>
     <div class="pills rv" style="--d:3"><span><span class="pill">발표자</span>최은기</span><span><span class="pill">소속</span>포스코 경영기획실</span></div>
   </div>
@@ -412,6 +412,7 @@ b, strong { font-weight: 700; }
   let source = document.querySelector('main').outerHTML;
   let handle, bar;
   const items = new Map();
+  const moved = new Set();
   const mark = (html) => `>${html}<`;
   const hasText = (el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
   const fileName = () => decodeURIComponent(location.pathname.split('/').pop()) || 'index.html';
@@ -419,7 +420,7 @@ b, strong { font-weight: 700; }
 
   const start = () => {
     bar = document.body.appendChild(Object.assign(document.createElement('div'), { className: 'edit-bar' }));
-    say('수정 중 · 글자를 클릭해서 고치세요 · Ctrl+S 저장 · Esc 끝내기');
+    say('수정 중 · 클릭: 글자 고치기 · Shift+드래그: 위치 옮기기 · Ctrl+S 저장 · Esc 끝내기');
     for (const el of document.querySelectorAll('.stage *')) {
       if (el.closest('.chrome, #demo, #xt, #gt, #years, svg, video, [contenteditable]') || !hasText(el)) continue;
       if (!source.includes(mark(el.innerHTML))) continue; // 스크립트가 그리는 글자는 파일에 그대로 없어서 고칠 수 없다
@@ -456,6 +457,12 @@ b, strong { font-weight: 700; }
       for (let i = 0; i < nth; i++) at = source.indexOf(mark(old), at + 1);
       if (at < 0) return say('저장하지 못했습니다: 파일에서 "' + el.textContent.slice(0, 20) + '" 위치를 찾지 못했습니다.');
       if (el.innerHTML !== old) edits.push([at + 1, old.length, el.innerHTML]);
+      if (moved.has(el)) {
+        const from = source.lastIndexOf('<', at);
+        const tag = source.slice(from, at);
+        const css = ` style="${el.getAttribute('style')}"`;
+        edits.push([from, tag.length, / style="[^"]*"/.test(tag) ? tag.replace(/ style="[^"]*"/, css) : tag + css]);
+      }
     }
     for (const [at, length, html] of edits.sort((a, b) => b[0] - a[0])) source = source.slice(0, at) + html + source.slice(at + length);
     for (const el of items.keys()) items.set(el, el.innerHTML);
@@ -476,6 +483,20 @@ b, strong { font-weight: 700; }
     else if (bar && e.key === 'Escape') { document.activeElement?.blur(); stop(); }
     else if (bar && e.key === 'Enter' && e.target.isContentEditable) { e.preventDefault(); document.execCommand('insertLineBreak'); }
     else if (!bar && e.code === 'KeyE' && !e.ctrlKey && !e.metaKey && !e.altKey) start();
+  }, true);
+  addEventListener('mousedown', (e) => {
+    const el = bar && e.shiftKey && e.target.closest?.('[contenteditable]');
+    if (!el) return;
+    e.preventDefault();
+    const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s'));
+    const [x, y = 0] = (el.style.translate || '0 0').split(' ').map(parseFloat);
+    const move = (m) => {
+      if (getComputedStyle(el).display === 'inline') el.style.display = 'inline-block'; // translate는 인라인 글자에 적용되지 않는다
+      el.style.translate = `${Math.round(x + (m.clientX - e.clientX) / scale)}px ${Math.round(y + (m.clientY - e.clientY) / scale)}px`;
+      moved.add(el);
+    };
+    addEventListener('mousemove', move);
+    addEventListener('mouseup', () => removeEventListener('mousemove', move), { once: true });
   }, true);
   addEventListener('paste', (e) => {
     if (!e.target.closest?.('[contenteditable]')) return;
