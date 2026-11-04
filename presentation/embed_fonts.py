@@ -1,4 +1,4 @@
-"""Embed Pretendard into index.html, subset to the characters the deck actually uses.
+"""Embed Pretendard into index.html, subset to the deck's characters plus all Hangul.
 
 Run again after editing slide text:  python -I presentation/embed_fonts.py
 The full TTFs in assets/ stay as a second family, so any character added later still renders in Pretendard
@@ -20,6 +20,7 @@ START, END = "/* embedded-fonts:start */", "/* embedded-fonts:end */"
 text = "".join(p.read_text(encoding="utf-8") for p in
                [HTML, HERE / "assets" / "step-window.js", HERE / "assets" / "step-window.css"])
 chars = set(text) | set(string.printable) | set("·…→←↑↓“”‘’「」×—–₩%")
+chars |= {chr(c) for c in range(0xAC00, 0xD7A4)}  # every Hangul syllable: text typed in edit mode must keep the font
 
 
 def subset_b64(weight):
