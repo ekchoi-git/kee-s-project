@@ -323,3 +323,11 @@
 
 - 저장소가 공개라서 소스만 골라 올렸다. 포함: `VIDEO_SCENARIO.yml`, `project-intro/`, `outputs/demo-video*/`의 `.py`, `.md`, `.yml`.
 - 로컬에만 둔 것: `MP_시작하는 마음.mp3`(외부 음악), `raw-take2.mkv`와 화면 캡처 PNG(다른 앱 창이 찍혔을 수 있음), wav·중간 영상, xlsx 3개(공판장 파일은 57MB), `codex 진행화면.pptx`.
+
+## 2026-11-04 demo-video 스킬 설치
+
+- 11월 2일 Codex에서 만든 스킬(`Desktop/261102_오전/.claude/skills/demo-video`)의 웹 모드를 `.claude/skills/demo-video/`로 옮겼다. 데스크톱 모드는 Codex 전용 도구에 의존해서 뺐다.
+- 고친 것: 음성 길이가 항상 0으로 측정되던 문제, 로컬 TTS 한국어 깨짐과 오류 시 기본 음성 대체, selector 없는 `type` 실패, 페이지 이동 뒤 자막·커서 사라짐, 영상 끝 잘림, 오디오 시작 기준 시각, OpenAI 음색 자동 선택, 커서 모양과 끝점.
+- 템플릿 기본 음성은 `none`이다. `.env`의 `OPENAI_API_KEY`는 비어 있고 git에 올리지 않는다.
+- 확인: `node scripts/smoke.mjs` 통과(없음, 로컬 TTS, 실패 스크린샷, 키 없음, 없는 음성, 캐시 재사용). OpenAI 실제 호출은 키가 없어 시험하지 못했다.
+- 다시 설치: 스킬 폴더에서 `npm ci`, `npx playwright install chromium`.

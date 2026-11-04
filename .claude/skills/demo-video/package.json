@@ -1,0 +1,14 @@
+{
+  "name": "demo-video-skill-runtime",
+  "private": true,
+  "type": "module",
+  "scripts": { "demo": "node scripts/run-demo.mjs" },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.1.0",
+    "openai": "^5.20.0",
+    "playwright": "^1.62.1",
+    "yaml": "^2.8.1"
+  }
+}
