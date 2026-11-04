@@ -90,7 +90,20 @@ class KeyDialog(QDialog):
         self.show_now()
         self.edit = QLineEdit()
         self.edit.setEchoMode(QLineEdit.Password)
-        self.edit.setPlaceholderText("OpenAI 또는 Claude API 키")
+        self.edit.setPlaceholderText("OpenAI·Claude·회사 GPT API 키 (종류는 자동으로 알아봄)")
+        # 회사 GPT는 키와 함께 직번·주소가 필요: 버튼을 누르거나 회사 키 모양을 넣으면 두 칸이 나온다
+        self.company = QPushButton("회사 GPT로 연결")
+        self.company.setCheckable(True)
+        self.company.toggled.connect(self.company_mode)
+        self.emp = QLineEdit()
+        self.emp.setPlaceholderText("직번")
+        self.url = QLineEdit()
+        self.url.setPlaceholderText("회사 GPT 주소 (http://…)")
+        now = ai.current_key()
+        if now and ai.is_company(now):
+            self.emp.setText(ai.saved_emp() or "")
+            self.url.setText(ai.saved_url() or "")
+        self.edit.textChanged.connect(lambda t: ai.is_company(t.strip()) and self.company.setChecked(True))
         self.msg = QLabel("")
         self.msg.setWordWrap(True)
         save, remove, cancel = QPushButton("확인 후 저장"), QPushButton("저장된 키 삭제"), QPushButton("닫기")
@@ -100,27 +113,39 @@ class KeyDialog(QDialog):
         cancel.clicked.connect(self.reject)
         btns = QHBoxLayout()
         btns.addWidget(remove)
+        btns.addWidget(self.company)
         btns.addStretch(1)
         btns.addWidget(cancel)
         btns.addWidget(save)
         lay = QVBoxLayout(self)
-        for wdg in (info, self.edit, self.msg):
+        for wdg in (info, self.edit, self.emp, self.url, self.msg):
             lay.addWidget(wdg)
         lay.addLayout(btns)
+        self.company_mode(False)
+
+    def company_mode(self, on):
+        self.emp.setVisible(on)
+        self.url.setVisible(on)
+        if on:
+            self.edit.setPlaceholderText("회사 GPT API 키 (36자리)")
 
     def save(self):
         k = self.edit.text().strip()
         if not k:
             self.msg.setText("키를 입력해주세요.")
             return
+        if self.company.isChecked() and not ai.is_company(k):
+            self.msg.setText("저장하지 않았습니다 (사유: 회사 GPT 키 형식이 아닙니다. 하이픈을 빼면 영문·숫자 32자리여야 합니다)")
+            return
+        emp, url = self.emp.text().strip(), self.url.text().strip()
         self.msg.setText(f"{ai.provider(k)}에 접속해 키를 확인하는 중…")
         QApplication.processEvents()
         try:
-            ai.check_key(k)
+            ai.check_key(k, emp, url)
         except Exception as e:
             self.msg.setText(f"저장하지 않았습니다 (사유: {e})")
             return
-        ai.save_key(k)
+        ai.save_key(k, emp, url)
         self.accept()
 
     def show_now(self):
@@ -159,6 +184,7 @@ QWidget { font-family: 'Pretendard', 'Malgun Gothic'; font-size: 11pt; backgroun
 QLineEdit, QComboBox { border: 1px solid #d1d5db; border-radius: 8px; padding: 7px 10px; }
 QPushButton { border: 1px solid #d1d5db; border-radius: 8px; padding: 7px 14px; background: white; }
 QPushButton:hover { background: #f3f4f6; }
+QPushButton:checked { background: #e6f9f8; border-color: #01C3B9; color: #017a74; }
 #send { background: #111827; color: white; border: none; }
 #composer { border: 1px solid #dcdad3; border-radius: 16px; background: #f5f4ef; }
 #ctx { background: transparent; }

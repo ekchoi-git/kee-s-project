@@ -7,7 +7,7 @@
 - AI: OpenAI(`gpt-5.6-terra`)와 Claude(`claude-sonnet-5-5`) 둘 다 지원. `sk-ant-`로 시작하면 Claude. 키는 API 키 창에서 넣은 것만 씀(Windows 자격 증명 관리자 `ExcelAI/OPENAI_API_KEY`). .env·환경 변수는 안 읽음.
 - 아래 수정은 모두 main에 커밋·푸시됨. 지금은 소스로 실행(`pythonw celly.py`).
 - **작업 규칙 (2026-10-29 사용자 지시): 지금부터는 파이썬 소스만 고치고 소스로 실행(`pythonw celly.py`)해 확인한다. exe는 빌드하지 않는다. 개발이 완성되면 그때 exe를 업데이트한다.**
-- exe는 바탕화면 `Celly.exe` 하나로 관리한다(2026-11-04 사용자 지시). 로컬 전용 `company` 브랜치에서 빌드하고, 빌드 뒤 `dist` 결과물을 바탕화면으로 옮긴다. `main`에서 빌드하면 회사 키가 빠진다.
+- 회사 GPT 키 기능은 main에 들어왔다(2026-11-04). 사내 주소는 코드에 없고 키 창에서 입력한다. 바탕화면 `Celly.exe`와 공개 사이트 exe는 이 변경 전 빌드다.
 - exe 빌드 방법(완성 후): `.packaging-venv/Scripts/pyinstaller --noconfirm Celly.spec` → `dist/Celly.exe`를 바탕화면에 복사. 빌드 후 확인: 저장 키 읽기(`win32timezone` 포함), Excel 인식(gen_py 캐시), 글자(FreeType).
 
 ## 다음에 할 일
@@ -351,3 +351,11 @@
 - exe는 두 종류다. 회사용은 바탕화면 `Celly.exe`(`company` 빌드, 공개 금지), 공개용은 `download-site/Celly.exe`(`main` 빌드). 사용자 선택에 따라 공개 사이트에 회사용을 올리지 않는다.
 - 다시 배포: `main`에서 빌드해 `download-site/`의 exe, zip, 페이지의 SHA256을 바꾼 뒤 그 폴더에서 `npx vercel@65.11.0 deploy --prod --yes`. 파일 합계 128MB도 무료 계정으로 배포됐다.
 - 확인: 공개 주소에서 exe, zip을 받아 SHA256 일치. 코드 서명이 없어 받은 PC에서 경고나 차단이 나올 수 있다.
+
+## 2026-11-04 회사 GPT 키 기능을 main에 반영
+
+- 사용자 요청으로 회사 GPT 키 기능을 main에 넣었다. 저장소가 공개라 `company` 브랜치를 병합하지 않고 코드만 가져와 새 커밋으로 만들었다. `company` 브랜치 이력에는 사내 주소가 있으므로 절대 푸시하거나 main에 병합하지 않는다.
+- 사내 주소, 회사명, 직번 예시는 코드에서 뺐다. 회사 키를 넣으면 키 창에 직번과 회사 GPT 주소 칸이 나온다. 주소는 자격 증명의 Comment 칸에 저장한다(`ai.saved_url`).
+- 이제 `pythonw celly.py`로 회사 키를 쓸 수 있다. 처음 한 번 주소를 입력해야 하고, 예전에 저장한 회사 키도 주소를 다시 넣어야 한다.
+- 확인: 테스트 4개 통과, 키 창 칸 표시와 잘못된 주소 거부 확인, 임시 자격 증명으로 Comment 저장·읽기 확인. 실제 회사 서버는 시험하지 못했다.
+- 미반영: 바탕화면 `Celly.exe`, 공개 사이트 exe는 다시 빌드하지 않았다.

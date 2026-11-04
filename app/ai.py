@@ -1,5 +1,6 @@
-"""AI 연결(OpenAI·Claude): 한국어 요청을 정해진 형식(JSON)의 작업 계획으로 바꾼다. 실행은 하지 않는다."""
-import json, sys
+"""AI 연결(OpenAI·Claude·회사 GPT): 한국어 요청을 정해진 형식(JSON)의 작업 계획으로 바꾼다. 실행은 하지 않는다."""
+import base64, json, re, sys
+import httpx2
 import openai
 import win32cred
 import win32timezone  # noqa: F401  CredRead가 날짜를 만들 때 몰래 불러옴 → exe에 안 묶이면 저장한 키를 못 읽음
@@ -7,18 +8,85 @@ from openai import OpenAI
 
 MODEL = "gpt-5.6-terra"
 CLAUDE_MODEL = "claude-sonnet-5-5"  # Opus 대비 토큰 단가 절반
+COMPANY_NO = "30"  # 회사 GPT 인증에 쓰는 회사 번호(고정)
 
 
 def is_claude(k):
     return k.startswith("sk-ant-")
 
 
+def is_company(k):
+    """회사 GPT 키: 36자리(하이픈 4개 포함), 하이픈을 빼면 영문·숫자 32자리. 앞글자(9 등)는 보지 않는다."""
+    return len(k) in (32, 36) and bool(re.fullmatch(r"[0-9A-Za-z]{32}", k.replace("-", "")))
+
+
 def provider(k):
-    """키 앞부분으로 고른 AI 회사 이름(화면 표시용)."""
+    """키 모양으로 고른 AI 이름(화면 표시용)."""
+    if k and is_company(k):
+        return "회사 GPT"
     return "Claude" if k and is_claude(k) else "OpenAI"
 
 
-def connect(k, timeout=60, max_retries=2):
+class CompanyError(RuntimeError):
+    """회사 GPT가 돌려준 실패. 문구는 화면에 그대로 보여 준다."""
+
+
+class CompanyClient:
+    """회사 GPT: OpenAI 채팅 형식 요청을 회사 인증 토큰(키·직번·회사 번호를 base64로 묶음)으로 보낸다."""
+
+    def __init__(self, k, emp, url, timeout=60, max_retries=2):
+        if not url:  # 공개 저장소라 주소는 코드에 두지 않고 키 창에서 받는다
+            raise CompanyError("API Key 창에서 회사 GPT 주소를 입력해주세요")
+        self.url = url
+        token = base64.b64encode(json.dumps({"apiKey": k, "empNo": emp, "compNo": COMPANY_NO}).encode()).decode()
+        self.http = httpx2.Client(timeout=timeout, transport=httpx2.HTTPTransport(retries=max_retries),
+                                  headers={"Authorization": f"Bearer {token}"})
+
+    def chat(self, messages, schema=None):
+        """(답 글, 토큰 수). 형식 지정(response_format)을 안 받아 주면 빼고 한 번 더 보낸다."""
+        body = {"model": MODEL, "messages": messages, "need_origin": True}
+        if schema:
+            body["response_format"] = {"type": "json_schema", "json_schema": {"name": "out", "strict": True, "schema": schema}}
+        r = self._post(body)
+        if r.status_code == 400 and schema:
+            body.pop("response_format")
+            body["messages"] = [{"role": "system", "content": "답은 설명 없이 JSON 객체 하나로만 한다."}, *messages]
+            r = self._post(body)
+        if r.status_code in (401, 403):
+            raise CompanyError("API 키 또는 직번이 올바르지 않습니다")
+        r.raise_for_status()
+        return _company_text(r.json())
+
+    def _post(self, body):
+        return self.http.post(self.url, json=body)
+
+
+def _company_text(d):
+    """답 글과 토큰 수. need_origin=True면 OpenAI 원본(choices)이 온다고 보고, 다른 값에 싸여 있으면 안쪽까지 찾는다.
+    shortcut: 실제 응답 예시 없이 OpenAI 형식으로 가정, 사내망에서 응답을 보면 정확한 경로로 고정"""
+    todo = [d]
+    while todo:
+        x = todo.pop(0)
+        if isinstance(x, dict):
+            if isinstance(x.get("choices"), list) and x["choices"]:
+                return x["choices"][0]["message"]["content"], (x.get("usage") or {}).get("total_tokens", 0)
+            todo += x.values()
+        elif isinstance(x, list):
+            todo += x
+    raise KeyError("choices")
+
+
+def _json(text):
+    """형식 지정 없이 받은 답이면 앞뒤 설명·```json 표시를 떼고 JSON만 읽는다."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return json.loads(text[text.index("{"):text.rindex("}") + 1])
+
+
+def connect(k, timeout=60, max_retries=2, emp=None, url=None):
+    if is_company(k):
+        return CompanyClient(k, emp or saved_emp(), url or saved_url(), timeout, max_retries)
     if is_claude(k):  # Claude는 답 전에 생각하는 시간이 있어 기다리는 시간을 넉넉히
         import anthropic  # Claude 키일 때만: 불러오는 데 몇 초 걸려 셀리 시작이 느려지므로 맨 위에서 부르지 않음
         return anthropic.Anthropic(api_key=k, timeout=timeout * 2, max_retries=max_retries)
@@ -26,7 +94,10 @@ def connect(k, timeout=60, max_retries=2):
 
 
 def ask(client, system, messages, schema):
-    """정해진 JSON 형식으로 답을 받는다(OpenAI·Claude 공통). (답, 토큰 수)"""
+    """정해진 JSON 형식으로 답을 받는다(OpenAI·Claude·회사 GPT 공통). (답, 토큰 수)"""
+    if isinstance(client, CompanyClient):
+        text, tokens = client.chat([{"role": "system", "content": system}, *messages], schema)
+        return _json(text), tokens
     anthropic = sys.modules.get("anthropic")  # 안 불러왔으면 Claude 클라이언트일 수 없음
     if anthropic and isinstance(client, anthropic.Anthropic):
         r = client.beta.messages.create(
@@ -151,8 +222,27 @@ def saved_key():
         return None
 
 
-def save_key(k):
-    win32cred.CredWrite({"Type": win32cred.CRED_TYPE_GENERIC, "TargetName": CRED, "UserName": provider(k).lower(),
+def saved_emp():
+    """회사 GPT 키와 함께 저장한 직번(자격 증명의 사용자 이름 칸)."""
+    try:
+        return win32cred.CredRead(CRED, win32cred.CRED_TYPE_GENERIC)["UserName"]
+    except Exception:
+        return None
+
+
+def saved_url():
+    """회사 GPT 키와 함께 저장한 주소(자격 증명의 설명 칸)."""
+    try:
+        return win32cred.CredRead(CRED, win32cred.CRED_TYPE_GENERIC)["Comment"]
+    except Exception:
+        return None
+
+
+def save_key(k, emp=None, url=None):
+    """키를 저장한다. 회사 GPT 키면 직번은 사용자 이름 칸, 주소는 설명 칸에 같이 둔다."""
+    win32cred.CredWrite({"Type": win32cred.CRED_TYPE_GENERIC, "TargetName": CRED,
+                         "UserName": emp if is_company(k) else provider(k).lower(),
+                         "Comment": url if is_company(k) else "",
                          "CredentialBlob": k, "Persist": win32cred.CRED_PERSIST_LOCAL_MACHINE}, 0)
 
 
@@ -163,13 +253,22 @@ def delete_key():
         pass
 
 
-def check_key(k):
-    """저장 전에 실제로 접속해 키와 모델 사용 권한을 확인. 실패하면 한국어 사유만 담은 예외."""
+def check_key(k, emp=None, url=None):
+    """저장 전에 실제로 접속해 키와 모델 사용 권한을 확인. 실패하면 한국어 사유만 담은 예외.
+    회사 GPT는 모델 확인 주소가 없어 아주 짧은 질문을 한 번 보낸다."""
     bad = "API 키가 올바르지 않습니다"
     if not (k.isascii() and k.isprintable()) or " " in k:  # 한글·공백이 섞이면 접속 전에 영어 인코딩 오류가 남
         raise RuntimeError(bad)
+    if is_company(k) and not (emp or "").strip():
+        raise RuntimeError("회사 GPT 키는 직번이 필요합니다")
+    if is_company(k) and not (url or "").startswith(("http://", "https://")):
+        raise RuntimeError("회사 GPT 주소를 http:// 또는 https://로 시작하게 입력해주세요")
     try:
-        connect(k, timeout=20, max_retries=0).models.retrieve(CLAUDE_MODEL if is_claude(k) else MODEL)
+        c = connect(k, timeout=20, max_retries=0, emp=emp, url=url)
+        if isinstance(c, CompanyClient):
+            c.chat([{"role": "user", "content": "OK라고만 답해"}])
+        else:
+            c.models.retrieve(CLAUDE_MODEL if is_claude(k) else MODEL)
     except Exception as e:
         anthropic = sys.modules.get("anthropic")
         if isinstance(e, (openai.AuthenticationError,) + ((anthropic.AuthenticationError,) if anthropic else ())):
@@ -208,7 +307,12 @@ def explain(e):
     if isinstance(e, err("APIConnectionError")): return "AI 서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요."
     if isinstance(e, err("NotFoundError")):
         return f"AI 모델 '{CLAUDE_MODEL if type(e).__module__.startswith('anthropic') else MODEL}'을 찾을 수 없습니다."
-    if isinstance(e, (json.JSONDecodeError, KeyError)): return "AI 응답을 해석하지 못했습니다. 다시 시도해주세요."
+    if isinstance(e, (json.JSONDecodeError, KeyError, ValueError)): return "AI 응답을 해석하지 못했습니다. 다시 시도해주세요."
+    # 회사 GPT(직접 HTTP)
+    if isinstance(e, CompanyError): return str(e)
+    if isinstance(e, httpx2.TimeoutException): return "AI 응답 시간 초과입니다. 다시 시도해주세요."
+    if isinstance(e, httpx2.TransportError): return "회사 GPT 서버에 연결할 수 없습니다. 사내망(회사 네트워크)에 연결돼 있는지 확인해주세요."
+    if isinstance(e, httpx2.HTTPStatusError): return f"회사 GPT 서버 오류({e.response.status_code})입니다. 잠시 후 다시 시도해주세요."
     return None
 
 
