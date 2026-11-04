@@ -7,7 +7,7 @@
 - AI: OpenAI(`gpt-5.6-terra`)와 Claude(`claude-sonnet-5-5`) 둘 다 지원. `sk-ant-`로 시작하면 Claude. 키는 API 키 창에서 넣은 것만 씀(Windows 자격 증명 관리자 `ExcelAI/OPENAI_API_KEY`). .env·환경 변수는 안 읽음.
 - 아래 수정은 모두 main에 커밋·푸시됨. 지금은 소스로 실행(`pythonw celly.py`).
 - **작업 규칙 (2026-10-29 사용자 지시): 지금부터는 파이썬 소스만 고치고 소스로 실행(`pythonw celly.py`)해 확인한다. exe는 빌드하지 않는다. 개발이 완성되면 그때 exe를 업데이트한다.**
-- 배포용 exe는 로컬 전용 `company` 브랜치에서 빌드한다. `dist/Celly.exe`, 바탕화면 `Celly.exe`가 그 최신 빌드다(2026-11-04).
+- exe는 바탕화면 `Celly.exe` 하나로 관리한다(2026-11-04 사용자 지시). 로컬 전용 `company` 브랜치에서 빌드하고, 빌드 뒤 `dist` 결과물을 바탕화면으로 옮긴다. `main`에서 빌드하면 회사 키가 빠진다.
 - exe 빌드 방법(완성 후): `.packaging-venv/Scripts/pyinstaller --noconfirm Celly.spec` → `dist/Celly.exe`를 바탕화면에 복사. 빌드 후 확인: 저장 키 읽기(`win32timezone` 포함), Excel 인식(gen_py 캐시), 글자(FreeType).
 
 ## 다음에 할 일
