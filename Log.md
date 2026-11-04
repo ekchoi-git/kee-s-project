@@ -7,7 +7,7 @@
 - AI: OpenAI(`gpt-5.6-terra`)와 Claude(`claude-sonnet-5-5`) 둘 다 지원. `sk-ant-`로 시작하면 Claude. 키는 API 키 창에서 넣은 것만 씀(Windows 자격 증명 관리자 `ExcelAI/OPENAI_API_KEY`). .env·환경 변수는 안 읽음.
 - 아래 수정은 모두 main에 커밋·푸시됨. 지금은 소스로 실행(`pythonw celly.py`).
 - **작업 규칙 (2026-10-29 사용자 지시): 지금부터는 파이썬 소스만 고치고 소스로 실행(`pythonw celly.py`)해 확인한다. exe는 빌드하지 않는다. 개발이 완성되면 그때 exe를 업데이트한다.**
-- 바탕화면 `Celly.exe`는 2026-10-29 15:53 빌드(커밋 `d2c2b90`까지 반영). 이후 수정은 exe에 없음.
+- 바탕화면 `Celly.exe`는 2026-11-04 14:19 빌드(앱 소스 최신 커밋 `6ff5e36`까지 반영).
 - exe 빌드 방법(완성 후): `.packaging-venv/Scripts/pyinstaller --noconfirm Celly.spec` → `dist/Celly.exe`를 바탕화면에 복사. 빌드 후 확인: 저장 키 읽기(`win32timezone` 포함), Excel 인식(gen_py 캐시), 글자(FreeType).
 
 ## 다음에 할 일
@@ -331,3 +331,10 @@
 - 템플릿 기본 음성은 `none`이다. `.env`의 `OPENAI_API_KEY`는 비어 있고 git에 올리지 않는다.
 - 확인: `node scripts/smoke.mjs` 통과(없음, 로컬 TTS, 실패 스크린샷, 키 없음, 없는 음성, 캐시 재사용). OpenAI 실제 호출은 키가 없어 시험하지 못했다.
 - 다시 설치: 스킬 폴더에서 `npm ci`, `npx playwright install chromium`.
+
+## 2026-11-04 배포용 exe 다시 빌드
+
+- 사용자 요청으로 `Celly.spec`으로 다시 빌드해 `dist/Celly.exe`와 바탕화면 `Celly.exe`를 교체했다. 코드 변경 없음. 크기 64,335,925바이트, SHA256 `c4e1cfe1b50e9fe57e27dac5b98d1da6d345978732fc74610f4b1afad0a1ca26`.
+- 확인: exe를 다른 폴더로 복사하고 빈 TEMP, 최소 PATH로 실행. 6초 만에 창이 뜨고 열린 Excel 통합 문서를 인식했으며 gen_py 캐시를 새로 만들었다. 묶음에 `.env`, 키 파일 없음. 저장 키 읽기와 AI 요청은 시험하지 않았다.
+- 실제 다른 PC에서는 시험하지 않았다. 서명이 없어 스마트 앱 컨트롤이나 회사 WDAC가 켜진 PC에서는 여전히 막힐 수 있다.
+- 다운로드 위치는 미정이다. `gh`가 없고 저장소가 공개라 GitHub Release 게시는 사용자 답변을 기다린다.
